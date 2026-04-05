@@ -1,0 +1,245 @@
+#ifndef BLOOM_INTERNAL_BUILD
+#define BLOOM_INTERNAL_BUILD
+#endif
+
+#include "rendering/api.h"
+#include "core/runtime/context/context.h"
+
+#ifdef BLOOM_OPENGL_BACKEND
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+#include <GL/gl.h>
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifndef GL_MULTISAMPLE
+#define GL_MULTISAMPLE 0x809D
+#endif
+
+#ifndef GL_CLAMP_TO_EDGE
+#define GL_CLAMP_TO_EDGE 0x812F
+#endif
+
+typedef struct bloom_gl_data
+{
+    bloom_u32 font_texture;
+} bloom_gl_data;
+
+static void bloom_gl_apply_scissor(bloom_rect clip_rect, bloom_f32 display_w, bloom_f32 display_h)
+{
+    bloom_i32 left;
+    bloom_i32 top;
+    bloom_i32 right;
+    bloom_i32 bottom;
+    bloom_i32 width;
+    bloom_i32 height;
+
+    if (clip_rect.w <= 0.0f || clip_rect.h <= 0.0f)
+    {
+        glScissor(0, 0, (int)display_w, (int)display_h);
+        return;
+    }
+
+    left = (bloom_i32)floorf(clip_rect.x);
+    top = (bloom_i32)floorf(clip_rect.y);
+    right = (bloom_i32)ceilf(clip_rect.x + clip_rect.w);
+    bottom = (bloom_i32)ceilf(clip_rect.y + clip_rect.h);
+
+    if (left < 0) left = 0;
+    if (top < 0) top = 0;
+    if (right > (bloom_i32)display_w) right = (bloom_i32)display_w;
+    if (bottom > (bloom_i32)display_h) bottom = (bloom_i32)display_h;
+
+    width = right - left;
+    height = bottom - top;
+    if (width <= 0 || height <= 0)
+    {
+        glScissor(0, 0, 0, 0);
+        return;
+    }
+
+    glScissor(left,
+              (int)display_h - bottom,
+              width,
+              height);
+}
+
+static bloom_bool bloom_gl_init(bloom_render_backend *backend)
+{
+    bloom_gl_data *data = (bloom_gl_data *)backend->user_data;
+    (void)data;
+    return BLOOM_TRUE;
+}
+
+static void bloom_gl_shutdown(bloom_render_backend *backend)
+{
+    bloom_gl_data *data = (bloom_gl_data *)backend->user_data;
+    if (data->font_texture)
+    {
+        glDeleteTextures(1, &data->font_texture);
+    }
+}
+
+static void bloom_gl_render(bloom_render_backend *backend, bloom_draw_list *dl,
+                             bloom_f32 display_w, bloom_f32 display_h)
+{
+    (void)backend;
+    bloom_context *ctx = bloom_get_context();
+    bloom_style *style = ctx ? &ctx->style : NULL;
+
+    glViewport(0, 0, (int)display_w, (int)display_h);
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0, display_w, display_h, 0, -1, 1);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glEnable(GL_SCISSOR_TEST);
+
+    if (style && (style->antialias_shapes || style->antialias_lines || style->antialias_text))
+    {
+        glEnable(GL_MULTISAMPLE);
+    }
+    else
+    {
+        glDisable(GL_MULTISAMPLE);
+    }
+
+    if (style && style->antialias_lines)
+    {
+        glEnable(GL_LINE_SMOOTH);
+        glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+    }
+    else
+    {
+        glDisable(GL_LINE_SMOOTH);
+    }
+
+    glDisable(GL_POLYGON_SMOOTH);
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    glEnableClientState(GL_COLOR_ARRAY);
+
+    glVertexPointer(2, GL_FLOAT, sizeof(bloom_vertex),
+                    &dl->vertices[0].pos);
+    glTexCoordPointer(2, GL_FLOAT, sizeof(bloom_vertex),
+                      &dl->vertices[0].uv);
+    glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(bloom_vertex),
+                   &dl->vertices[0].col);
+
+    bloom_u32 idx_offset = 0;
+    bloom_u32 i;
+    for (i = 0; i < dl->cmd_count; i++)
+    {
+        bloom_draw_cmd *cmd = &dl->commands[i];
+
+        bloom_gl_apply_scissor(cmd->clip_rect, display_w, display_h);
+
+        if (cmd->texture_id != 0)
+        {
+            glEnable(GL_TEXTURE_2D);
+            glBindTexture(GL_TEXTURE_2D, cmd->texture_id);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                            (style && style->antialias_text) ? GL_LINEAR : GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
+                            (style && style->antialias_text) ? GL_LINEAR : GL_NEAREST);
+        }
+        else
+        {
+            glDisable(GL_TEXTURE_2D);
+        }
+        glDrawElements(GL_TRIANGLES, (int)cmd->elem_count,
+                       GL_UNSIGNED_SHORT, &dl->indices[idx_offset]);
+        idx_offset += cmd->elem_count;
+    }
+
+    glDisable(GL_TEXTURE_2D);
+
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    glDisableClientState(GL_COLOR_ARRAY);
+
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_BLEND);
+    glDisable(GL_LINE_SMOOTH);
+}
+
+static bloom_u32 bloom_gl_create_texture(bloom_render_backend *backend,
+                                          bloom_u32 width, bloom_u32 height,
+                                          const bloom_u8 *pixels)
+{
+    (void)backend;
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    bloom_u8 *rgba = (bloom_u8 *)malloc(width * height * 4);
+    if (rgba)
+    {
+        bloom_u32 j;
+        for (j = 0; j < width * height; j++)
+        {
+            rgba[j * 4 + 0] = 255;
+            rgba[j * 4 + 1] = 255;
+            rgba[j * 4 + 2] = 255;
+            rgba[j * 4 + 3] = pixels[j];
+        }
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (int)width, (int)height,
+                     0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+        free(rgba);
+    }
+
+    return (bloom_u32)tex;
+}
+
+static void bloom_gl_destroy_texture(bloom_render_backend *backend, bloom_u32 texture_id)
+{
+    (void)backend;
+    GLuint tex = (GLuint)texture_id;
+    glDeleteTextures(1, &tex);
+}
+
+bloom_render_backend *bloom_create_opengl_backend(void)
+{
+    bloom_render_backend *backend = (bloom_render_backend *)malloc(sizeof(bloom_render_backend));
+    bloom_gl_data *data = (bloom_gl_data *)calloc(1, sizeof(bloom_gl_data));
+    if (!backend || !data)
+    {
+        free(backend);
+        free(data);
+        return NULL;
+    }
+    backend->init = bloom_gl_init;
+    backend->shutdown = bloom_gl_shutdown;
+    backend->render = bloom_gl_render;
+    backend->create_texture = bloom_gl_create_texture;
+    backend->destroy_texture = bloom_gl_destroy_texture;
+    backend->user_data = data;
+    return backend;
+}
+
+void bloom_destroy_opengl_backend(bloom_render_backend *backend)
+{
+    if (backend)
+    {
+        backend->shutdown(backend);
+        free(backend->user_data);
+        free(backend);
+    }
+}
+
+#endif
