@@ -100,6 +100,7 @@ typedef struct bloom_style
 void bloom_style_default(bloom_style *style);
 void bloom_style_material_dark(bloom_style *style);
 void bloom_style_material_light(bloom_style *style);
+void bloom_style_scale(bloom_style *style, bloom_f32 scale);
 #endif
 
 #ifdef __cplusplus

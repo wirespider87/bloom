@@ -650,6 +650,24 @@ static void bloom_api_draw_convex_fill_polygon(const bloom_vec2 *points, bloom_i
     }
 }
 
+static bloom_render_backend *bloom_api_create_opengl_backend(void)
+{
+#ifdef BLOOM_OPENGL_BACKEND
+    return bloom_create_opengl_backend();
+#else
+    return NULL;
+#endif
+}
+
+static void bloom_api_destroy_opengl_backend(bloom_render_backend *backend)
+{
+#ifdef BLOOM_OPENGL_BACKEND
+    bloom_destroy_opengl_backend(backend);
+#else
+    (void)backend;
+#endif
+}
+
 static const bloom_api g_bloom_api = {
     bloom_api_v2,
     bloom_api_rect_make,
@@ -821,8 +839,8 @@ static const bloom_api g_bloom_api = {
         bloom_font_char_width
     },
     {
-        bloom_create_opengl_backend,
-        bloom_destroy_opengl_backend
+        bloom_api_create_opengl_backend,
+        bloom_api_destroy_opengl_backend
     },
     {
         bloom_platform_create,
@@ -832,6 +850,8 @@ static const bloom_api g_bloom_api = {
         bloom_platform_get_size,
         bloom_platform_get_opacity,
         bloom_platform_set_opacity,
+        bloom_platform_get_auto_dpi_awareness,
+        bloom_platform_set_auto_dpi_awareness,
         bloom_platform_get_time,
         bloom_platform_get_clipboard_text,
         bloom_platform_set_clipboard_text

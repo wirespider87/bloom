@@ -122,6 +122,7 @@ void bloom_widgets_begin_frame(void)
     g_popup_draw_redirect_active = BLOOM_FALSE;
     g_popup_input_block = g_popup_persist_open;
     g_popup_input_rect = g_popup_persist_open ? g_popup_persist_rect : bloom_make_rect(0.0f, 0.0f, 0.0f, 0.0f);
+    bloom_tooltip_begin_frame();
 }
 
 void bloom_widgets_end_frame(void)
@@ -138,6 +139,7 @@ void bloom_widgets_end_frame(void)
     }
 
     bloom_draw_list_append(&ctx->draw_list, &g_popup_draw_list);
+    bloom_tooltip_flush_deferred();
 }
 
 bloom_bool bloom_widget_hovered(bloom_rect rect)

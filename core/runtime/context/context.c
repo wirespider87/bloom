@@ -201,6 +201,7 @@ bloom_context *bloom_create_context(void)
     ctx->initialized = BLOOM_TRUE;
     ctx->window_order_counter = 0;
     ctx->draw_layer = BLOOM_DRAW_LAYER_WINDOW;
+    ctx->dpi_scale = 1.0f;
 
     if (!g_bloom_ctx)
     {

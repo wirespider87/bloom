@@ -47,6 +47,8 @@ void bloom_platform_swap(bloom_platform_window *win);
 void bloom_platform_get_size(bloom_platform_window *win, bloom_i32 *w, bloom_i32 *h);
 bloom_f32 bloom_platform_get_opacity(bloom_platform_window *win);
 void bloom_platform_set_opacity(bloom_platform_window *win, bloom_f32 opacity);
+bloom_bool bloom_platform_get_auto_dpi_awareness(void);
+void bloom_platform_set_auto_dpi_awareness(bloom_bool enabled);
 bloom_f64 bloom_platform_get_time(void);
 bloom_bool bloom_platform_get_clipboard_text(char *buffer, bloom_u32 buffer_size);
 bloom_bool bloom_platform_set_clipboard_text(const char *text);

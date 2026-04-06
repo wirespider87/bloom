@@ -50,6 +50,151 @@ struct bloom_platform_window
 static bloom_platform_window *g_platform_win = NULL;
 static bloom_bool g_nc_dragging = BLOOM_FALSE;
 static POINT g_nc_drag_offset;
+static bloom_bool g_platform_auto_dpi_awareness = BLOOM_TRUE;
+static bloom_bool g_platform_dpi_awareness_attempted = BLOOM_FALSE;
+
+#ifndef DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE
+#define DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE ((HANDLE)-3)
+#endif
+
+#ifndef DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+#define DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 ((HANDLE)-4)
+#endif
+
+typedef BOOL (WINAPI *bloom_set_process_dpi_awareness_context_proc)(HANDLE);
+typedef BOOL (WINAPI *bloom_set_process_dpi_aware_proc)(void);
+typedef HRESULT (WINAPI *bloom_set_process_dpi_awareness_proc)(int);
+typedef UINT (WINAPI *bloom_get_dpi_for_window_proc)(HWND);
+
+static void bloom_platform_try_enable_dpi_awareness(void)
+{
+    HMODULE user32_mod;
+    bloom_set_process_dpi_awareness_context_proc set_dpi_context;
+    bloom_set_process_dpi_aware_proc set_dpi_aware;
+    HMODULE shcore_mod;
+    bloom_set_process_dpi_awareness_proc set_dpi_awareness;
+
+    if (!g_platform_auto_dpi_awareness || g_platform_dpi_awareness_attempted)
+    {
+        return;
+    }
+
+    g_platform_dpi_awareness_attempted = BLOOM_TRUE;
+
+    user32_mod = GetModuleHandleA("user32.dll");
+    if (!user32_mod)
+    {
+        return;
+    }
+
+    set_dpi_context = (bloom_set_process_dpi_awareness_context_proc)
+        GetProcAddress(user32_mod, "SetProcessDpiAwarenessContext");
+    if (set_dpi_context)
+    {
+        if (set_dpi_context(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))
+        {
+            return;
+        }
+        if (set_dpi_context(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE))
+        {
+            return;
+        }
+    }
+
+    shcore_mod = LoadLibraryA("shcore.dll");
+    if (shcore_mod)
+    {
+        set_dpi_awareness = (bloom_set_process_dpi_awareness_proc)
+            GetProcAddress(shcore_mod, "SetProcessDpiAwareness");
+        if (set_dpi_awareness)
+        {
+            /* PROCESS_PER_MONITOR_DPI_AWARE = 2 */
+            if (SUCCEEDED(set_dpi_awareness(2)))
+            {
+                FreeLibrary(shcore_mod);
+                return;
+            }
+        }
+        FreeLibrary(shcore_mod);
+    }
+
+    set_dpi_aware = (bloom_set_process_dpi_aware_proc)
+        GetProcAddress(user32_mod, "SetProcessDPIAware");
+    if (set_dpi_aware)
+    {
+        set_dpi_aware();
+    }
+}
+
+static bloom_f32 bloom_platform_query_dpi_scale(HWND hwnd, HDC hdc)
+{
+    HMODULE user32_mod = GetModuleHandleA("user32.dll");
+    bloom_get_dpi_for_window_proc get_dpi_for_window = NULL;
+    UINT dpi = 96;
+
+    if (user32_mod)
+    {
+        get_dpi_for_window = (bloom_get_dpi_for_window_proc)
+            GetProcAddress(user32_mod, "GetDpiForWindow");
+    }
+
+    if (get_dpi_for_window && hwnd)
+    {
+        dpi = get_dpi_for_window(hwnd);
+    }
+    else if (hdc)
+    {
+        int log_pixels = GetDeviceCaps(hdc, LOGPIXELSX);
+        if (log_pixels > 0)
+        {
+            dpi = (UINT)log_pixels;
+        }
+    }
+
+    if (dpi < 96)
+    {
+        dpi = 96;
+    }
+
+    return (bloom_f32)dpi / 96.0f;
+}
+
+static void bloom_platform_apply_context_dpi_scale(bloom_f32 dpi_scale)
+{
+    bloom_context *ctx = bloom_get_context();
+    bloom_f32 prev_scale;
+    bloom_f32 ratio;
+
+    if (!ctx)
+    {
+        return;
+    }
+
+    if (dpi_scale < 0.75f)
+    {
+        dpi_scale = 0.75f;
+    }
+    if (dpi_scale > 4.0f)
+    {
+        dpi_scale = 4.0f;
+    }
+
+    prev_scale = (ctx->dpi_scale > 0.0f) ? ctx->dpi_scale : 1.0f;
+    ratio = dpi_scale / prev_scale;
+    if (ratio > 0.995f && ratio < 1.005f)
+    {
+        return;
+    }
+
+    bloom_style_scale(&ctx->style, ratio);
+    ctx->dpi_scale = dpi_scale;
+
+    bloom_font_destroy(&ctx->default_font);
+    bloom_font_init(&ctx->default_font);
+    bloom_font_build_default(&ctx->default_font, ctx->style.font_size);
+    ctx->current_font = &ctx->default_font;
+    bloom_font_set_active(ctx->current_font);
+}
 
 static bloom_bool bloom_str_contains(const char *haystack, const char *needle)
 {
@@ -656,6 +801,8 @@ bloom_platform_window *bloom_platform_create(bloom_platform_config *config)
     flags = bloom_platform_resolve_flags(config);
     opacity = bloom_platform_default_opacity(config);
 
+    bloom_platform_try_enable_dpi_awareness();
+
     WNDCLASSEXA wc;
     memset(&wc, 0, sizeof(wc));
     wc.cbSize = sizeof(wc);
@@ -728,6 +875,12 @@ bloom_platform_window *bloom_platform_create(bloom_platform_config *config)
     win->borderless = (flags & BLOOM_PLATFORM_WINDOW_FLAG_BORDERLESS) != 0;
     win->flags = flags;
     win->opacity = 1.0f;
+
+    if (g_platform_auto_dpi_awareness)
+    {
+        bloom_f32 dpi_scale = bloom_platform_query_dpi_scale(win->hwnd, win->hdc);
+        bloom_platform_apply_context_dpi_scale(dpi_scale);
+    }
 
     if ((flags & BLOOM_PLATFORM_WINDOW_FLAG_TRANSPARENT) || opacity < 1.0f)
     {
@@ -812,6 +965,16 @@ void bloom_platform_set_opacity(bloom_platform_window *win, bloom_f32 opacity)
     }
 
     bloom_platform_apply_opacity(win, opacity);
+}
+
+bloom_bool bloom_platform_get_auto_dpi_awareness(void)
+{
+    return g_platform_auto_dpi_awareness;
+}
+
+void bloom_platform_set_auto_dpi_awareness(bloom_bool enabled)
+{
+    g_platform_auto_dpi_awareness = enabled ? BLOOM_TRUE : BLOOM_FALSE;
 }
 
 bloom_f64 bloom_platform_get_time(void)

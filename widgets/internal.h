@@ -49,6 +49,8 @@ void bloom_popup_begin_deferred_draw(bloom_context *ctx);
 void bloom_popup_end_deferred_draw(bloom_context *ctx);
 void bloom_widgets_begin_frame(void);
 void bloom_widgets_end_frame(void);
+void bloom_tooltip_begin_frame(void);
+void bloom_tooltip_flush_deferred(void);
 
 extern bloom_bool g_popup_input_block;
 extern bloom_rect g_popup_input_rect;

@@ -16,6 +16,9 @@ typedef struct bloom_hex_state
 static bloom_hex_state g_hex_states[BLOOM_HEX_STATE_CAPACITY];
 
 static void bloom_color_to_hex(char *buf, bloom_u32 buf_size, const bloom_f32 col[4], bloom_bool with_alpha);
+static void bloom_color_draw_picker_square(bloom_context *ctx, bloom_rect rect, bloom_f32 hue);
+static void bloom_color_draw_hue_bar(bloom_context *ctx, bloom_rect rect);
+static void bloom_color_draw_alpha_bar(bloom_context *ctx, bloom_rect rect, const bloom_f32 col[4]);
 
 static bloom_hex_state *bloom_find_hex_state(bloom_id id)
 {
@@ -697,60 +700,83 @@ static bloom_bool bloom_color_swatch_row(const char *label, const bloom_f32 col[
 
 static bloom_bool bloom_color_apply_rgb_panel(bloom_f32 col[4], bloom_bool with_alpha)
 {
+    bloom_context *ctx = bloom_get_context();
     bloom_bool changed = BLOOM_FALSE;
+    bloom_f32 total_w;
+    bloom_f32 field_w;
+    bloom_f32 saved_avail;
 
-    changed |= bloom_numeric_input("R", &col[0], BLOOM_VALUE_KIND_FLOAT);
-    changed |= bloom_numeric_input("G", &col[1], BLOOM_VALUE_KIND_FLOAT);
-    changed |= bloom_numeric_input("B", &col[2], BLOOM_VALUE_KIND_FLOAT);
-    if (with_alpha)
+    if (!ctx || !ctx->current_window)
     {
-        changed |= bloom_numeric_input("A", &col[3], BLOOM_VALUE_KIND_FLOAT);
+        return BLOOM_FALSE;
+    }
+
+    total_w     = ctx->current_window->layout.available_width;
+    field_w     = (total_w - ctx->style.item_inner_spacing * 2.0f) / 3.0f;
+    saved_avail = total_w;
+
+    {
+        bloom_f32 row_x = ctx->current_window->layout.cursor.x;
+        ctx->current_window->layout.available_width = field_w;
+        changed |= bloom_float_scrub("R", &col[0], 0.0f, 1.0f, 0.003f);
+        bloom_same_line();
+        ctx->current_window->layout.available_width = field_w;
+        changed |= bloom_float_scrub("G", &col[1], 0.0f, 1.0f, 0.003f);
+        bloom_same_line();
+        ctx->current_window->layout.available_width = field_w;
+        changed |= bloom_float_scrub("B", &col[2], 0.0f, 1.0f, 0.003f);
+
+        ctx->current_window->layout.available_width = saved_avail;
+        if (with_alpha)
+        {
+            ctx->current_window->layout.cursor.x = row_x;
+            changed |= bloom_float_scrub("A", &col[3], 0.0f, 1.0f, 0.003f);
+        }
     }
 
     bloom_color_sanitize(col, with_alpha);
     return changed;
 }
 
-static bloom_bool bloom_color_apply_hsv_panel(bloom_f32 col[4], bloom_bool with_alpha)
-{
-    bloom_bool changed = BLOOM_FALSE;
-    bloom_f32 hsv[3];
-    bloom_f32 hue_degrees;
-
-    bloom_rgb_to_hsv(col, &hsv[0], &hsv[1], &hsv[2]);
-    hue_degrees = hsv[0] * 360.0f;
-
-    changed |= bloom_numeric_input("Hue", &hue_degrees, BLOOM_VALUE_KIND_FLOAT);
-    changed |= bloom_numeric_input("Sat", &hsv[1], BLOOM_VALUE_KIND_FLOAT);
-    changed |= bloom_numeric_input("Val", &hsv[2], BLOOM_VALUE_KIND_FLOAT);
-    if (with_alpha)
-    {
-        changed |= bloom_numeric_input("Alpha", &col[3], BLOOM_VALUE_KIND_FLOAT);
-    }
-
-    if (changed)
-    {
-        hsv[0] = hue_degrees / 360.0f;
-        bloom_hsv_to_rgb(hsv[0], hsv[1], hsv[2], col);
-        bloom_color_sanitize(col, with_alpha);
-    }
-    return changed;
-}
-
 static bloom_bool bloom_color_apply_lab_panel(bloom_f32 col[4], bloom_bool with_alpha)
 {
+    bloom_context *ctx = bloom_get_context();
     bloom_bool changed = BLOOM_FALSE;
     bloom_f32 l;
     bloom_f32 a;
     bloom_f32 b;
+    bloom_f32 total_w;
+    bloom_f32 field_w;
+    bloom_f32 saved_avail;
+
+    if (!ctx || !ctx->current_window)
+    {
+        return BLOOM_FALSE;
+    }
 
     bloom_rgb_to_lab(col, &l, &a, &b);
-    changed |= bloom_numeric_input("Light", &l, BLOOM_VALUE_KIND_FLOAT);
-    changed |= bloom_numeric_input("Axis A", &a, BLOOM_VALUE_KIND_FLOAT);
-    changed |= bloom_numeric_input("Axis B", &b, BLOOM_VALUE_KIND_FLOAT);
-    if (with_alpha)
+
+    total_w     = ctx->current_window->layout.available_width;
+    field_w     = (total_w - ctx->style.item_inner_spacing * 2.0f) / 3.0f;
+    saved_avail = total_w;
+
     {
-        changed |= bloom_numeric_input("Alpha", &col[3], BLOOM_VALUE_KIND_FLOAT);
+        bloom_f32 row_x = ctx->current_window->layout.cursor.x;
+        ctx->current_window->layout.available_width = field_w;
+        changed |= bloom_float_scrub("L", &l, 0.0f, 100.0f, 0.5f);
+        bloom_same_line();
+        ctx->current_window->layout.available_width = field_w;
+        changed |= bloom_float_scrub("A", &a, -128.0f, 127.0f, 1.0f);
+        bloom_same_line();
+        ctx->current_window->layout.available_width = field_w;
+        changed |= bloom_float_scrub("B", &b, -128.0f, 127.0f, 1.0f);
+
+        ctx->current_window->layout.available_width = saved_avail;
+        if (with_alpha)
+        {
+            ctx->current_window->layout.cursor.x = row_x;
+            changed |= bloom_float_scrub("Alpha", &col[3], 0.0f, 1.0f, 0.003f);
+        }
     }
 
     if (changed)
@@ -804,6 +830,438 @@ static bloom_bool bloom_color_apply_hex_panel(const char *scope_label, bloom_f32
 
     bloom_pop_id();
     return changed;
+}
+
+/* -----------------------------------------------------------------------
+ * Tab state: tracks which mode tab is active per color-picker widget
+ * --------------------------------------------------------------------- */
+typedef enum
+{
+    BLOOM_COLOR_TAB_LAB = 0,
+    BLOOM_COLOR_TAB_RGB,
+    BLOOM_COLOR_TAB_HEX
+} bloom_color_tab;
+
+#define BLOOM_COLOR_TAB_CAP 32
+typedef struct { bloom_id id; bloom_color_tab tab; } bloom_color_tab_rec;
+static bloom_color_tab_rec g_tab_recs[BLOOM_COLOR_TAB_CAP];
+static int g_tab_rec_count = 0;
+
+static bloom_color_tab *bloom_color_find_tab(bloom_id id, bloom_u32 flags)
+{
+    int i;
+    bloom_color_tab def;
+
+    if      (!(flags & BLOOM_COLOR_FLAGS_NO_LAB)) def = BLOOM_COLOR_TAB_LAB;
+    else if (!(flags & BLOOM_COLOR_FLAGS_NO_RGB)) def = BLOOM_COLOR_TAB_RGB;
+    else                                          def = BLOOM_COLOR_TAB_HEX;
+
+    for (i = 0; i < g_tab_rec_count; i++)
+    {
+        if (g_tab_recs[i].id == id)
+        {
+            return &g_tab_recs[i].tab;
+        }
+    }
+    if (g_tab_rec_count < BLOOM_COLOR_TAB_CAP)
+    {
+        g_tab_recs[g_tab_rec_count].id  = id;
+        g_tab_recs[g_tab_rec_count].tab = def;
+        return &g_tab_recs[g_tab_rec_count++].tab;
+    }
+    return NULL;
+}
+
+/* Draw SVB picker square, hue bar, optional alpha bar and update col[]. */
+static bloom_bool bloom_color_draw_visual_picker(bloom_context *ctx,
+                                                  bloom_rect square_rect,
+                                                  bloom_rect hue_rect,
+                                                  bloom_rect alpha_rect,
+                                                  bloom_bool with_alpha,
+                                                  bloom_id square_id,
+                                                  bloom_id hue_id,
+                                                  bloom_id alpha_id,
+                                                  bloom_f32 hsv[3],
+                                                  bloom_f32 col[4])
+{
+    bloom_bool changed = BLOOM_FALSE;
+    bloom_f32 rgb[3];
+    bloom_style *s = &ctx->style;
+
+    if (bloom_widget_hovered(square_rect) && ctx->input.mouse_pressed[BLOOM_MOUSE_LEFT])
+    {
+        ctx->active_id = square_id;
+    }
+    if (bloom_widget_hovered(hue_rect) && ctx->input.mouse_pressed[BLOOM_MOUSE_LEFT])
+    {
+        ctx->active_id = hue_id;
+    }
+    if (with_alpha && bloom_widget_hovered(alpha_rect) && ctx->input.mouse_pressed[BLOOM_MOUSE_LEFT])
+    {
+        ctx->active_id = alpha_id;
+    }
+
+    if (ctx->active_id == square_id)
+    {
+        if (ctx->input.mouse_down[BLOOM_MOUSE_LEFT])
+        {
+            hsv[1] = bloom_color_clamp01((ctx->input.mouse_pos.x - square_rect.x) / square_rect.w);
+            hsv[2] = bloom_color_clamp01(1.0f - (ctx->input.mouse_pos.y - square_rect.y) / square_rect.h);
+            bloom_hsv_to_rgb(hsv[0], hsv[1], hsv[2], rgb);
+            col[0] = rgb[0]; col[1] = rgb[1]; col[2] = rgb[2];
+            changed = BLOOM_TRUE;
+        }
+        else { ctx->active_id = 0; }
+    }
+    if (ctx->active_id == hue_id)
+    {
+        if (ctx->input.mouse_down[BLOOM_MOUSE_LEFT])
+        {
+            hsv[0] = bloom_color_clamp01((ctx->input.mouse_pos.y - hue_rect.y) / hue_rect.h);
+            bloom_hsv_to_rgb(hsv[0], hsv[1], hsv[2], rgb);
+            col[0] = rgb[0]; col[1] = rgb[1]; col[2] = rgb[2];
+            changed = BLOOM_TRUE;
+        }
+        else { ctx->active_id = 0; }
+    }
+    if (with_alpha && ctx->active_id == alpha_id)
+    {
+        if (ctx->input.mouse_down[BLOOM_MOUSE_LEFT])
+        {
+            col[3] = bloom_color_clamp01((ctx->input.mouse_pos.y - alpha_rect.y) / alpha_rect.h);
+            changed = BLOOM_TRUE;
+        }
+        else { ctx->active_id = 0; }
+    }
+
+    bloom_color_draw_picker_square(ctx, square_rect, hsv[0]);
+    bloom_draw_rect_rounded_border(&ctx->draw_list, square_rect, s->input_border, 8.0f, 1.0f);
+    bloom_color_draw_hue_bar(ctx, hue_rect);
+    bloom_draw_rect_rounded_border(&ctx->draw_list, hue_rect, s->input_border, 8.0f, 1.0f);
+    if (with_alpha)
+    {
+        bloom_color_draw_alpha_bar(ctx, alpha_rect, col);
+        bloom_draw_rect_rounded_border(&ctx->draw_list, alpha_rect, s->input_border, 8.0f, 1.0f);
+    }
+
+    bloom_color_draw_picker_marker(ctx,
+        bloom_v2(square_rect.x + hsv[1] * square_rect.w,
+                 square_rect.y + (1.0f - hsv[2]) * square_rect.h),
+        col);
+    bloom_color_draw_bar_marker(ctx, hue_rect, hue_rect.y + hsv[0] * hue_rect.h, col);
+    if (with_alpha)
+    {
+        bloom_color_draw_bar_marker(ctx, alpha_rect, alpha_rect.y + col[3] * alpha_rect.h, col);
+    }
+
+    return changed;
+}
+
+/* Inline tab-strip pill buttons for mode switching.
+   Returns BLOOM_TRUE if the active tab changed. */
+static bloom_bool bloom_color_draw_tab_strip(bloom_context *ctx,
+                                              bloom_vec2 pos,
+                                              bloom_f32 available_w,
+                                              bloom_u32 flags,
+                                              bloom_color_tab *active_tab)
+{
+    static const struct { bloom_color_tab tab; const char *label; bloom_u32 flag; } k_tabs[] = {
+        { BLOOM_COLOR_TAB_LAB, "LAB",  BLOOM_COLOR_FLAGS_NO_LAB },
+        { BLOOM_COLOR_TAB_RGB, "RGB",  BLOOM_COLOR_FLAGS_NO_RGB },
+        { BLOOM_COLOR_TAB_HEX, "HEX",  BLOOM_COLOR_FLAGS_NO_HEX },
+    };
+    bloom_style *s = &ctx->style;
+    bloom_f32 tab_h = bloom_scaled_line_height(ctx, s->font_size * 0.82f) + 10.0f;
+    bloom_bool changed = BLOOM_FALSE;
+    bloom_f32 gap = 3.0f;
+    int enabled[3];
+    int n = 0;
+    int i;
+    bloom_f32 tab_w;
+    bloom_f32 x = pos.x;
+
+    for (i = 0; i < 3; i++)
+    {
+        enabled[i] = !(flags & k_tabs[i].flag);
+        if (enabled[i]) n++;
+    }
+    if (n == 0)
+    {
+        return BLOOM_FALSE;
+    }
+
+    tab_w = (available_w - gap * (bloom_f32)(n - 1)) / (bloom_f32)n;
+
+    for (i = 0; i < 3; i++)
+    {
+        bloom_rect r;
+        bloom_bool is_active;
+        bloom_bool hovered;
+        bloom_color bg;
+        bloom_color text_col;
+        bloom_f32 lw;
+        bloom_f32 tx;
+        bloom_f32 ty;
+        bloom_id btn_id;
+
+        if (!enabled[i])
+        {
+            continue;
+        }
+
+        r = bloom_make_rect(x, pos.y, tab_w, tab_h);
+        is_active = (*active_tab == k_tabs[i].tab);
+        hovered   = bloom_widget_hovered(r);
+        btn_id    = bloom_get_id(k_tabs[i].label);
+
+        if (hovered && ctx->input.mouse_pressed[BLOOM_MOUSE_LEFT])
+        {
+            ctx->active_id = btn_id;
+        }
+        if (ctx->active_id == btn_id && ctx->input.mouse_released[BLOOM_MOUSE_LEFT])
+        {
+            if (hovered)
+            {
+                *active_tab = k_tabs[i].tab;
+                changed = BLOOM_TRUE;
+            }
+            ctx->active_id = 0;
+        }
+
+        if (is_active)
+        {
+            bg       = bloom_apply_state_layer(s->input_bg, s->input_cursor, 0.25f);
+            text_col = s->input_cursor;
+        }
+        else if (hovered)
+        {
+            bg       = bloom_apply_state_layer(s->input_bg, s->text_default, 0.08f);
+            text_col = s->text_default;
+        }
+        else
+        {
+            bg       = bloom_scale_alpha(s->input_bg, 0.5f);
+            text_col = s->text_disabled;
+        }
+
+        bloom_draw_rect_rounded(&ctx->draw_list, r, bg, s->input_rounding);
+        if (is_active)
+        {
+            bloom_draw_rect_rounded_border(&ctx->draw_list, r,
+                bloom_scale_alpha(s->input_cursor, 0.5f), s->input_rounding, 1.0f);
+        }
+
+        lw = bloom_text_width(k_tabs[i].label, s->font_size * 0.82f);
+        tx = r.x + (r.w - lw) * 0.5f;
+        ty = r.y + (r.h - bloom_scaled_line_height(ctx, s->font_size * 0.82f)) * 0.5f;
+        bloom_draw_text(&ctx->draw_list, bloom_v2(tx, ty),
+                        k_tabs[i].label, text_col,
+                        s->font_size * 0.82f, ctx->default_font.texture_id);
+
+        x += tab_w + gap;
+    }
+
+    return changed;
+}
+
+/* The unified color picker card.  Pass always_open=TRUE for the edit
+   variant (always expanded) or FALSE for the pick variant (swatch click
+   to expand/collapse).  Returns BLOOM_TRUE when col[] was modified. */
+static bloom_bool bloom_color_picker_card(const char *label, bloom_f32 col[4],
+                                           bloom_bool with_alpha, bloom_u32 flags,
+                                           bloom_bool always_open)
+{
+    bloom_context *ctx = bloom_get_context();
+    bloom_style *s;
+    bloom_vec2 pos;
+    bloom_f32 available_w;
+    bloom_f32 card_padding;
+    bloom_f32 bar_w;
+    bloom_f32 spacing;
+    bloom_f32 square_size;
+    bloom_f32 tab_h;
+    bloom_f32 field_h;
+    bloom_f32 total_h;
+    bloom_rect card_rect;
+    bloom_rect square_rect;
+    bloom_rect hue_rect;
+    bloom_rect alpha_rect;
+    bloom_f32 hsv[3];
+    bloom_id square_id;
+    bloom_id hue_id;
+    bloom_id alpha_id;
+    bloom_id tab_state_id;
+    bloom_id toggle_id;
+    bloom_bool *picker_open = NULL;
+    bloom_color_tab *active_tab;
+    bloom_bool changed = BLOOM_FALSE;
+    bloom_vec2 banner_pos;
+
+    if (!ctx || !ctx->current_window)
+    {
+        return BLOOM_FALSE;
+    }
+
+    s           = &ctx->style;
+    available_w = ctx->current_window->layout.available_width;
+    card_padding = 14.0f;
+    bar_w        = 20.0f;
+    spacing      = 8.0f;
+
+    bloom_color_sanitize(col, with_alpha);
+
+    /* --- preview banner (always drawn) --- */
+    banner_pos = ctx->current_window->layout.cursor;
+    bloom_color_draw_preview_banner(label, col, with_alpha);
+
+    bloom_push_id(label);
+
+    toggle_id   = bloom_get_id("##pickerToggle");
+    tab_state_id = bloom_get_id("##tabState");
+
+    if (!always_open)
+    {
+        bloom_rect swatch_hit = bloom_make_rect(
+            banner_pos.x + available_w - 68.0f,
+            banner_pos.y + 11.0f,
+            52.0f, 78.0f - 22.0f);
+
+        picker_open = bloom_color_pick_find_state(toggle_id);
+
+        if (picker_open && bloom_widget_hovered(swatch_hit) &&
+            ctx->input.mouse_pressed[BLOOM_MOUSE_LEFT])
+        {
+            *picker_open = !(*picker_open);
+        }
+
+        if (!picker_open || !(*picker_open))
+        {
+            bloom_pop_id();
+            return BLOOM_FALSE;
+        }
+    }
+
+    /* --- look up tab state --- */
+    active_tab = bloom_color_find_tab(tab_state_id, flags);
+
+    /* --- layout geometry --- */
+    pos         = ctx->current_window->layout.cursor;
+    square_size = available_w - card_padding * 2.0f - bar_w - spacing;
+    if (with_alpha)
+    {
+        square_size -= bar_w + spacing;
+    }
+    if (square_size > 220.0f) square_size = 220.0f;
+    if (square_size < 100.0f) square_size = 100.0f;
+
+    tab_h  = bloom_scaled_line_height(ctx, s->font_size * 0.82f) + 10.0f;
+
+    /* field area height: LAB/RGB = 1 compact row (+ optional alpha), HEX = 1 row */
+    {
+        bloom_f32 row_h = bloom_scaled_line_height(ctx, s->font_size * 0.9f)
+                        + s->label_gap
+                        + bloom_scaled_line_height(ctx, s->font_size) + s->field_padding_y * 2.0f
+                        + s->touch_padding;
+        int n_rows = 1;
+        if (with_alpha && active_tab && *active_tab != BLOOM_COLOR_TAB_HEX) n_rows = 2;
+        field_h = (bloom_f32)n_rows * row_h
+                + ((bloom_f32)(n_rows - 1)) * s->item_spacing
+                + 8.0f;
+        (void)n_rows;
+    }
+
+    total_h = card_padding + square_size +
+              spacing + tab_h +
+              spacing + field_h +
+              card_padding;
+
+    card_rect = bloom_make_rect(pos.x, pos.y, available_w, total_h);
+
+    bloom_color_draw_card(ctx, card_rect, s->input_rounding + 4.0f);
+
+    /* --- SV square + bars --- */
+    square_rect = bloom_make_rect(pos.x + card_padding,
+                                  pos.y + card_padding,
+                                  square_size, square_size);
+    hue_rect = bloom_make_rect(square_rect.x + square_rect.w + spacing,
+                                square_rect.y, bar_w, square_size);
+    alpha_rect = bloom_make_rect(hue_rect.x + hue_rect.w + spacing,
+                                  square_rect.y, bar_w, square_size);
+
+    bloom_rgb_to_hsv(col, &hsv[0], &hsv[1], &hsv[2]);
+    square_id = bloom_get_id("##sq");
+    hue_id    = bloom_get_id("##hue");
+    alpha_id  = bloom_get_id("##alpha");
+
+    changed |= bloom_color_draw_visual_picker(ctx, square_rect, hue_rect, alpha_rect,
+                                               with_alpha, square_id, hue_id, alpha_id,
+                                               hsv, col);
+
+    /* --- tab strip --- */
+    {
+        bloom_f32 strip_y = pos.y + card_padding + square_size + spacing;
+        bloom_vec2 strip_pos = bloom_v2(pos.x + card_padding,
+                                        strip_y);
+        bloom_f32 strip_w = available_w - card_padding * 2.0f;
+
+        bloom_color_draw_tab_strip(ctx, strip_pos, strip_w, flags, active_tab);
+    }
+
+    /* --- active tab fields --- */
+    {
+        bloom_f32 fields_y = pos.y + card_padding + square_size +
+                             spacing + tab_h + spacing;
+
+        /* temporarily shift layout cursor into the card */
+        bloom_vec2 saved_cursor  = ctx->current_window->layout.cursor;
+        bloom_f32  saved_avail_w = ctx->current_window->layout.available_width;
+        bloom_f32  field_avail_w = available_w - card_padding * 2.0f;
+
+        ctx->current_window->layout.cursor.x = pos.x + card_padding;
+        ctx->current_window->layout.cursor.y = fields_y;
+        ctx->current_window->layout.available_width = field_avail_w;
+
+        if (active_tab)
+        {
+            if (*active_tab == BLOOM_COLOR_TAB_LAB &&
+                !(flags & BLOOM_COLOR_FLAGS_NO_LAB))
+            {
+                changed |= bloom_color_apply_lab_panel(col, with_alpha);
+            }
+            else if (*active_tab == BLOOM_COLOR_TAB_RGB &&
+                     !(flags & BLOOM_COLOR_FLAGS_NO_RGB))
+            {
+                changed |= bloom_color_apply_rgb_panel(col, with_alpha);
+            }
+            else if (*active_tab == BLOOM_COLOR_TAB_HEX &&
+                     !(flags & BLOOM_COLOR_FLAGS_NO_HEX))
+            {
+                changed |= bloom_color_apply_hex_panel(label, col, with_alpha);
+            }
+        }
+
+        /* restore layout */
+        ctx->current_window->layout.cursor          = saved_cursor;
+        ctx->current_window->layout.available_width = saved_avail_w;
+    }
+
+    bloom_color_commit_manual_block(ctx, pos, available_w, total_h);
+
+    bloom_pop_id();
+    bloom_color_sanitize(col, with_alpha);
+    return changed;
+}
+
+static bloom_bool bloom_color_edit_internal(const char *label, bloom_f32 col[4],
+                                            bloom_bool with_alpha, bloom_u32 flags)
+{
+    return bloom_color_picker_card(label, col, with_alpha, flags, BLOOM_TRUE);
+}
+
+static bloom_bool bloom_color_pick_internal(const char *label, bloom_f32 col[4],
+                                            bloom_bool with_alpha, bloom_u32 flags)
+{
+    return bloom_color_picker_card(label, col, with_alpha, flags, BLOOM_FALSE);
 }
 
 static void bloom_color_draw_picker_square(bloom_context *ctx, bloom_rect rect, bloom_f32 hue)
@@ -892,252 +1350,6 @@ static void bloom_color_draw_alpha_bar(bloom_context *ctx, bloom_rect rect, cons
     bloom_draw_pop_clip(&ctx->draw_list);
 }
 
-static bloom_bool bloom_color_edit_internal(const char *label, bloom_f32 col[4],
-                                            bloom_bool with_alpha, bloom_u32 flags)
-{
-    bloom_bool changed = BLOOM_FALSE;
-
-    bloom_color_sanitize(col, with_alpha);
-    bloom_color_draw_preview_banner(label, col, with_alpha);
-
-    bloom_push_id(label);
-    if ((flags & BLOOM_COLOR_FLAGS_NO_RGB) == 0)
-    {
-        bloom_text_disabled("RGB Channels");
-        changed |= bloom_color_apply_rgb_panel(col, with_alpha);
-        bloom_spacing();
-    }
-    if ((flags & BLOOM_COLOR_FLAGS_NO_HEX) == 0)
-    {
-        bloom_text_disabled("Hex");
-        changed |= bloom_color_apply_hex_panel(label, col, with_alpha);
-        bloom_spacing();
-    }
-    if ((flags & BLOOM_COLOR_FLAGS_NO_HSV) == 0)
-    {
-        bloom_text_disabled("Hue, Saturation, Value");
-        changed |= bloom_color_apply_hsv_panel(col, with_alpha);
-        bloom_spacing();
-    }
-    if ((flags & BLOOM_COLOR_FLAGS_NO_LAB) == 0)
-    {
-        bloom_text_disabled("Perceptual Lab");
-        changed |= bloom_color_apply_lab_panel(col, with_alpha);
-    }
-    bloom_pop_id();
-
-    bloom_color_sanitize(col, with_alpha);
-    return changed;
-}
-
-static bloom_bool bloom_color_pick_internal(const char *label, bloom_f32 col[4],
-                                            bloom_bool with_alpha, bloom_u32 flags)
-{
-    bloom_context *ctx = bloom_get_context();
-    bloom_style *s;
-    bloom_vec2 banner_pos;
-    bloom_vec2 pos;
-    bloom_f32 available_w;
-    bloom_f32 square_size;
-    bloom_f32 bar_w;
-    bloom_f32 spacing;
-    bloom_rect square_rect;
-    bloom_rect hue_rect;
-    bloom_rect alpha_rect;
-    bloom_rect picker_card_rect;
-    bloom_rect swatch_hit_rect;
-    bloom_f32 hsv[3];
-    bloom_id square_id;
-    bloom_id hue_id;
-    bloom_id alpha_id;
-    bloom_id toggle_id;
-    bloom_bool changed = BLOOM_FALSE;
-    bloom_bool *picker_open;
-    bloom_f32 rgb[3];
-    bloom_f32 total_h;
-    bloom_f32 card_padding;
-    bloom_f32 header_h;
-
-    if (!ctx || !ctx->current_window)
-    {
-        return BLOOM_FALSE;
-    }
-
-    s = &ctx->style;
-    bloom_color_sanitize(col, with_alpha);
-
-    /* --- preview banner with clickable swatch --- */
-    banner_pos = ctx->current_window->layout.cursor;
-    available_w = ctx->current_window->layout.available_width;
-    bloom_color_draw_preview_banner(label, col, with_alpha);
-
-    bloom_push_id(label);
-    toggle_id = bloom_get_id("##pickerToggle");
-    picker_open = bloom_color_pick_find_state(toggle_id);
-
-    swatch_hit_rect = bloom_make_rect(banner_pos.x + available_w - 68.0f,
-                                      banner_pos.y + 11.0f,
-                                      52.0f, 78.0f - 22.0f);
-
-    if (picker_open && bloom_widget_hovered(swatch_hit_rect) &&
-        ctx->input.mouse_pressed[BLOOM_MOUSE_LEFT])
-    {
-        *picker_open = !(*picker_open);
-    }
-
-    if (!picker_open || !(*picker_open))
-    {
-        bloom_pop_id();
-        return BLOOM_FALSE;
-    }
-
-    /* --- picker card --- */
-    pos = ctx->current_window->layout.cursor;
-    bar_w = 18.0f;
-    spacing = 10.0f;
-    card_padding = 16.0f;
-    header_h = bloom_scaled_line_height(ctx, s->font_size * 0.82f) + 8.0f;
-    square_size = available_w - card_padding * 2.0f - bar_w - spacing;
-    if (with_alpha)
-    {
-        square_size -= bar_w + spacing;
-    }
-    if (square_size > 220.0f) square_size = 220.0f;
-    if (square_size < 120.0f) square_size = 120.0f;
-
-    picker_card_rect = bloom_make_rect(pos.x,
-                                       pos.y,
-                                       available_w,
-                                       card_padding * 2.0f + header_h + square_size);
-    square_rect = bloom_make_rect(pos.x + card_padding,
-                                  pos.y + card_padding + header_h,
-                                  square_size,
-                                  square_size);
-    hue_rect = bloom_make_rect(square_rect.x + square_rect.w + spacing,
-                               square_rect.y,
-                               bar_w,
-                               square_size);
-    alpha_rect = bloom_make_rect(hue_rect.x + hue_rect.w + spacing,
-                                 square_rect.y,
-                                 bar_w,
-                                 square_size);
-    total_h = picker_card_rect.h;
-
-    bloom_rgb_to_hsv(col, &hsv[0], &hsv[1], &hsv[2]);
-    square_id = bloom_get_id("##pickerSquare");
-    hue_id = bloom_get_id("##pickerHue");
-    alpha_id = bloom_get_id("##pickerAlpha");
-
-    if (bloom_widget_hovered(square_rect) && ctx->input.mouse_pressed[BLOOM_MOUSE_LEFT])
-    {
-        ctx->active_id = square_id;
-    }
-    if (bloom_widget_hovered(hue_rect) && ctx->input.mouse_pressed[BLOOM_MOUSE_LEFT])
-    {
-        ctx->active_id = hue_id;
-    }
-    if (with_alpha && bloom_widget_hovered(alpha_rect) && ctx->input.mouse_pressed[BLOOM_MOUSE_LEFT])
-    {
-        ctx->active_id = alpha_id;
-    }
-
-    if (ctx->active_id == square_id)
-    {
-        if (ctx->input.mouse_down[BLOOM_MOUSE_LEFT])
-        {
-            hsv[1] = (ctx->input.mouse_pos.x - square_rect.x) / square_rect.w;
-            hsv[2] = 1.0f - ((ctx->input.mouse_pos.y - square_rect.y) / square_rect.h);
-            hsv[1] = bloom_color_clamp01(hsv[1]);
-            hsv[2] = bloom_color_clamp01(hsv[2]);
-            bloom_hsv_to_rgb(hsv[0], hsv[1], hsv[2], rgb);
-            col[0] = rgb[0];
-            col[1] = rgb[1];
-            col[2] = rgb[2];
-            changed = BLOOM_TRUE;
-        }
-        else
-        {
-            ctx->active_id = 0;
-        }
-    }
-    if (ctx->active_id == hue_id)
-    {
-        if (ctx->input.mouse_down[BLOOM_MOUSE_LEFT])
-        {
-            hsv[0] = (ctx->input.mouse_pos.y - hue_rect.y) / hue_rect.h;
-            hsv[0] = bloom_color_clamp01(hsv[0]);
-            bloom_hsv_to_rgb(hsv[0], hsv[1], hsv[2], rgb);
-            col[0] = rgb[0];
-            col[1] = rgb[1];
-            col[2] = rgb[2];
-            changed = BLOOM_TRUE;
-        }
-        else
-        {
-            ctx->active_id = 0;
-        }
-    }
-    if (with_alpha && ctx->active_id == alpha_id)
-    {
-        if (ctx->input.mouse_down[BLOOM_MOUSE_LEFT])
-        {
-            col[3] = (ctx->input.mouse_pos.y - alpha_rect.y) / alpha_rect.h;
-            col[3] = bloom_color_clamp01(col[3]);
-            changed = BLOOM_TRUE;
-        }
-        else
-        {
-            ctx->active_id = 0;
-        }
-    }
-
-    bloom_color_draw_card(ctx, picker_card_rect, s->input_rounding + 4.0f);
-    bloom_draw_text(&ctx->draw_list,
-                    bloom_v2(picker_card_rect.x + card_padding,
-                             picker_card_rect.y + card_padding),
-                    with_alpha ? "Tone, chroma, and opacity" : "Tone and chroma",
-                    s->text_disabled,
-                    s->font_size * 0.82f,
-                    ctx->default_font.texture_id);
-
-    bloom_color_draw_picker_square(ctx, square_rect, hsv[0]);
-    bloom_draw_rect_rounded_border(&ctx->draw_list, square_rect, s->input_border, 8.0f, 1.0f);
-    bloom_color_draw_hue_bar(ctx, hue_rect);
-    bloom_draw_rect_rounded_border(&ctx->draw_list, hue_rect, s->input_border, 8.0f, 1.0f);
-    if (with_alpha)
-    {
-        bloom_color_draw_alpha_bar(ctx, alpha_rect, col);
-        bloom_draw_rect_rounded_border(&ctx->draw_list, alpha_rect, s->input_border, 8.0f, 1.0f);
-    }
-
-    bloom_color_draw_picker_marker(ctx,
-        bloom_v2(square_rect.x + hsv[1] * square_rect.w,
-                 square_rect.y + (1.0f - hsv[2]) * square_rect.h),
-        col);
-    bloom_color_draw_bar_marker(ctx,
-        hue_rect,
-        hue_rect.y + hsv[0] * hue_rect.h,
-        col);
-    if (with_alpha)
-    {
-        bloom_color_draw_bar_marker(ctx,
-            alpha_rect,
-            alpha_rect.y + col[3] * alpha_rect.h,
-            col);
-    }
-
-    bloom_color_commit_manual_block(ctx, pos, available_w, total_h);
-
-    /* inline hex input */
-    if ((flags & BLOOM_COLOR_FLAGS_NO_HEX) == 0)
-    {
-        changed |= bloom_color_apply_hex_panel(label, col, with_alpha);
-    }
-
-    bloom_pop_id();
-    bloom_color_sanitize(col, with_alpha);
-    return changed;
-}
 
 bloom_bool bloom_color_swatch(const char *label, const bloom_f32 col[4], bloom_f32 w, bloom_f32 h)
 {
@@ -1146,6 +1358,7 @@ bloom_bool bloom_color_swatch(const char *label, const bloom_f32 col[4], bloom_f
     bloom_color_sanitize(col4, BLOOM_TRUE);
     return bloom_color_swatch_row(label, col4, w, h, BLOOM_TRUE);
 }
+
 
 bloom_bool bloom_color_edit3(const char *label, bloom_f32 col[3])
 {

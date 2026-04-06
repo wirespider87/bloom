@@ -247,7 +247,16 @@ static void bloom_gl_apply_scissor(bloom_rect clip_rect, bloom_f32 display_w, bl
 
     if (clip_rect.w <= 0.0f || clip_rect.h <= 0.0f)
     {
-        glScissor(0, 0, (int)display_w, (int)display_h);
+        if (clip_rect.x < 0.0f && clip_rect.y < 0.0f)
+        {
+            /* no-clip sentinel {-1,-1,-1,-1}: full-screen scissor */
+            glScissor(0, 0, (int)display_w, (int)display_h);
+        }
+        else
+        {
+            /* zero-area intersection: widget scrolled off window, clip everything */
+            glScissor(0, 0, 0, 0);
+        }
         return;
     }
 

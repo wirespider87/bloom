@@ -4,6 +4,54 @@
 
 #include "core/runtime/style/style.h"
 
+void bloom_style_scale(bloom_style *style, bloom_f32 scale)
+{
+    if (!style)
+    {
+        return;
+    }
+
+    if (scale <= 0.0f || scale == 1.0f)
+    {
+        return;
+    }
+
+    style->window_rounding *= scale;
+    style->button_rounding *= scale;
+    style->slider_rounding *= scale;
+    style->input_rounding *= scale;
+    style->scrollbar_rounding *= scale;
+
+    style->window_padding *= scale;
+    style->item_spacing *= scale;
+    style->item_inner_spacing *= scale;
+    style->indent_spacing *= scale;
+    style->scrollbar_width *= scale;
+    style->scrollbar_inset *= scale;
+    style->title_bar_height *= scale;
+    if (style->title_bar_rounding != BLOOM_STYLE_ROUNDING_INHERIT)
+    {
+        style->title_bar_rounding *= scale;
+    }
+    if (style->title_bar_bottom_rounding != BLOOM_STYLE_ROUNDING_INHERIT)
+    {
+        style->title_bar_bottom_rounding *= scale;
+    }
+    style->border_width *= scale;
+    style->shadow_offset *= scale;
+    style->color_preview_rounding *= scale;
+    style->color_preview_border_width *= scale;
+
+    style->font_size *= scale;
+
+    style->control_padding_x *= scale;
+    style->control_padding_y *= scale;
+    style->field_padding_x *= scale;
+    style->field_padding_y *= scale;
+    style->label_gap *= scale;
+    style->touch_padding *= scale;
+}
+
 void bloom_style_default(bloom_style *style)
 {
     bloom_style_material_dark(style);

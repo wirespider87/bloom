@@ -71,6 +71,8 @@ typedef struct bloom_platform_api
 	void (*get_size)(bloom_platform_window *win, bloom_i32 *w, bloom_i32 *h);
 	bloom_f32 (*get_opacity)(bloom_platform_window *win);
 	void (*set_opacity)(bloom_platform_window *win, bloom_f32 opacity);
+	bloom_bool (*get_auto_dpi_awareness)(void);
+	void (*set_auto_dpi_awareness)(bloom_bool enabled);
 	bloom_f64 (*get_time)(void);
 	bloom_bool (*get_clipboard_text)(char *buffer, bloom_u32 buffer_size);
 	bloom_bool (*set_clipboard_text)(const char *text);

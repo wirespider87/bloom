@@ -3,12 +3,10 @@
 #endif
 
 #include "core/graphics/font/font.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "stb_truetype.h"
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -114,7 +112,7 @@ static bloom_bool bloom_font_extract_ttf_name(const bloom_u8 *data, bloom_u64 da
 
 static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, const char *face_name)
 {
-    const bloom_f32 oversample = 3.0f;
+    const bloom_f32 oversample = 4.0f;
     const int first_char = 32;
     const int glyph_count = 96;
     const int columns = 16;
@@ -177,7 +175,7 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
         DEFAULT_CHARSET,
         OUT_OUTLINE_PRECIS,
         CLIP_DEFAULT_PRECIS,
-        ANTIALIASED_QUALITY,
+        CLEARTYPE_NATURAL_QUALITY,
         VARIABLE_PITCH,
         face_name);
     if (!font_handle)
@@ -299,6 +297,103 @@ static bloom_bool bloom_font_build_gdi(bloom_font *font, bloom_f32 size)
 {
     return bloom_font_build_gdi_ex(font, size, "Segoe UI");
 }
+
+static bloom_bool bloom_font_read_file_bytes(const char *path, bloom_u8 **out_data, bloom_u64 *out_size)
+{
+    FILE *fp;
+    long len;
+    bloom_u8 *data;
+    size_t read_bytes;
+
+    if (!path || !out_data || !out_size)
+    {
+        return BLOOM_FALSE;
+    }
+
+    *out_data = NULL;
+    *out_size = 0;
+
+    fp = fopen(path, "rb");
+    if (!fp)
+    {
+        return BLOOM_FALSE;
+    }
+
+    if (fseek(fp, 0, SEEK_END) != 0)
+    {
+        fclose(fp);
+        return BLOOM_FALSE;
+    }
+
+    len = ftell(fp);
+    if (len <= 0 || fseek(fp, 0, SEEK_SET) != 0)
+    {
+        fclose(fp);
+        return BLOOM_FALSE;
+    }
+
+    data = (bloom_u8 *)malloc((size_t)len);
+    if (!data)
+    {
+        fclose(fp);
+        return BLOOM_FALSE;
+    }
+
+    read_bytes = fread(data, 1, (size_t)len, fp);
+    fclose(fp);
+    if (read_bytes != (size_t)len)
+    {
+        free(data);
+        return BLOOM_FALSE;
+    }
+
+    *out_data = data;
+    *out_size = (bloom_u64)len;
+    return BLOOM_TRUE;
+}
+
+static bloom_bool bloom_font_build_default_ttf_win32(bloom_font *font, bloom_f32 size)
+{
+    char windows_dir[MAX_PATH];
+    char path[MAX_PATH * 2];
+    const char *candidates[] = {
+        "segoeui.ttf",
+        "arial.ttf",
+        "tahoma.ttf"
+    };
+    bloom_u32 i;
+
+    if (!GetWindowsDirectoryA(windows_dir, (UINT)sizeof(windows_dir)))
+    {
+        return BLOOM_FALSE;
+    }
+
+    for (i = 0; i < (bloom_u32)(sizeof(candidates) / sizeof(candidates[0])); ++i)
+    {
+        bloom_u8 *data = NULL;
+        bloom_u64 data_size = 0;
+
+        if (snprintf(path, sizeof(path), "%s\\Fonts\\%s", windows_dir, candidates[i]) <= 0)
+        {
+            continue;
+        }
+
+        if (!bloom_font_read_file_bytes(path, &data, &data_size))
+        {
+            continue;
+        }
+
+        if (bloom_font_load_from_memory(font, data, data_size, size))
+        {
+            free(data);
+            return BLOOM_TRUE;
+        }
+
+        free(data);
+    }
+
+    return BLOOM_FALSE;
+}
 #endif
 
 void bloom_font_init(bloom_font *font)
@@ -309,6 +404,11 @@ void bloom_font_init(bloom_font *font)
 bloom_bool bloom_font_build_default(bloom_font *font, bloom_f32 size)
 {
 #ifdef _WIN32
+    if (bloom_font_build_default_ttf_win32(font, size))
+    {
+        return BLOOM_TRUE;
+    }
+
     if (bloom_font_build_gdi(font, size))
     {
         return BLOOM_TRUE;
@@ -319,96 +419,40 @@ bloom_bool bloom_font_build_default(bloom_font *font, bloom_f32 size)
 
 bloom_bool bloom_font_load_from_memory(bloom_font *font, const bloom_u8 *data, bloom_u64 size, bloom_f32 pixel_size)
 {
-    const int first_char = 32;
-    const int glyph_count = 96;
-    const int atlas_w = 1024;
-    const int atlas_h = 1024;
-    const int oversample_h = 2;
-    const int oversample_v = 2;
-    stbtt_pack_context spc;
-    stbtt_packedchar chardata[96];
-    stbtt_fontinfo info;
-    float stb_ascent_f;
-    int iascent, idescent, ilineGap;
-    float scale_factor;
-    int i;
+#ifdef _WIN32
+    char family_name[128];
+    DWORD loaded_fonts = 0;
+    HANDLE font_res = NULL;
+    bloom_bool ok;
 
-    if (!data || size == 0)
-        return bloom_font_build_default(font, pixel_size);
-
-    font->atlas_width = (bloom_u32)atlas_w;
-    font->atlas_height = (bloom_u32)atlas_h;
-    font->atlas_pixels = (bloom_u8 *)malloc((size_t)atlas_w * (size_t)atlas_h);
-    if (!font->atlas_pixels)
-        return bloom_font_build_default(font, pixel_size);
-
-    memset(font->atlas_pixels, 0, (size_t)atlas_w * (size_t)atlas_h);
-
-    if (!stbtt_PackBegin(&spc, font->atlas_pixels, atlas_w, atlas_h, 0, 1, NULL))
+    if (!font || !data || size == 0 || pixel_size <= 0.0f)
     {
-        free(font->atlas_pixels);
-        font->atlas_pixels = NULL;
-        return bloom_font_build_default(font, pixel_size);
+        return BLOOM_FALSE;
     }
 
-    stbtt_PackSetOversampling(&spc, oversample_h, oversample_v);
-
-    if (!stbtt_PackFontRange(&spc, (const unsigned char *)data, 0, pixel_size, first_char, glyph_count, chardata))
+    family_name[0] = '\0';
+    if (!bloom_font_extract_ttf_name(data, size, family_name, (int)sizeof(family_name)))
     {
-        stbtt_PackEnd(&spc);
-        free(font->atlas_pixels);
-        font->atlas_pixels = NULL;
-        return bloom_font_build_default(font, pixel_size);
+        return BLOOM_FALSE;
     }
 
-    stbtt_PackEnd(&spc);
-
-    /* font vertical metrics */
-    stbtt_InitFont(&info, (const unsigned char *)data,
-                   stbtt_GetFontOffsetForIndex((const unsigned char *)data, 0));
-    scale_factor = stbtt_ScaleForPixelHeight(&info, pixel_size);
-    stbtt_GetFontVMetrics(&info, &iascent, &idescent, &ilineGap);
-    stb_ascent_f = (float)iascent * scale_factor;
-
-    font->ascent = stb_ascent_f;
-    font->descent = -(float)idescent * scale_factor;
-    font->line_height = (float)(iascent - idescent + ilineGap) * scale_factor;
-
-    /* build glyph table */
-    font->glyph_count = (bloom_u32)glyph_count;
-    font->glyph_capacity = (bloom_u32)glyph_count;
-    font->glyphs = (bloom_glyph *)malloc(sizeof(bloom_glyph) * glyph_count);
-    if (!font->glyphs)
+    font_res = AddFontMemResourceEx((void *)data, (DWORD)size, NULL, &loaded_fonts);
+    if (!font_res || loaded_fonts == 0)
     {
-        free(font->atlas_pixels);
-        font->atlas_pixels = NULL;
-        return bloom_font_build_default(font, pixel_size);
+        return BLOOM_FALSE;
     }
 
-    for (i = 0; i < glyph_count; i++)
-    {
-        bloom_glyph *g = &font->glyphs[i];
-        stbtt_packedchar *pc = &chardata[i];
+    ok = bloom_font_build_gdi_ex(font, pixel_size, family_name);
 
-        g->codepoint = (bloom_u32)(first_char + i);
-        g->advance = pc->xadvance;
-
-        /* quad offsets relative to top of line (stb yoff is baseline-relative) */
-        g->x0 = pc->xoff;
-        g->y0 = pc->yoff + stb_ascent_f;
-        g->x1 = pc->xoff2;
-        g->y1 = pc->yoff2 + stb_ascent_f;
-
-        /* atlas UVs */
-        g->u0 = (bloom_f32)pc->x0 / (bloom_f32)atlas_w;
-        g->v0 = (bloom_f32)pc->y0 / (bloom_f32)atlas_h;
-        g->u1 = (bloom_f32)pc->x1 / (bloom_f32)atlas_w;
-        g->v1 = (bloom_f32)pc->y1 / (bloom_f32)atlas_h;
-    }
-
-    font->size = pixel_size;
-    font->valid = BLOOM_TRUE;
-    return BLOOM_TRUE;
+    RemoveFontMemResourceEx(font_res);
+    return ok;
+#else
+    (void)font;
+    (void)data;
+    (void)size;
+    (void)pixel_size;
+    return BLOOM_FALSE;
+#endif
 }
 
 void bloom_font_destroy(bloom_font *font)

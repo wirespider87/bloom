@@ -187,6 +187,7 @@ typedef struct bloom_context
     bloom_i32       table_row_index;
 
     bloom_i32       draw_layer;
+    bloom_f32       dpi_scale;
 } bloom_context;
 
 #if defined(BLOOM_INTERNAL_BUILD) || defined(BLOOM_ENABLE_LEGACY_API)
