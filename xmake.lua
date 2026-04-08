@@ -1,5 +1,5 @@
 set_project("bloom")
-set_version("0.1.0")
+set_version("1.0.1")
 
 add_rules("mode.debug", "mode.release")
 
@@ -19,6 +19,12 @@ option("shared")
     set_default(false)
     set_showmenu(true)
     set_description("Build bloom as a shared library")
+option_end()
+
+option("examples")
+    set_default(true)
+    set_showmenu(true)
+    set_description("Build showcase/example programs")
 option_end()
 
 target("bloom")
@@ -44,14 +50,14 @@ target("bloom")
     end
 
     add_headerfiles("bloom.h")
-    add_headerfiles("core/**.h")
-    add_headerfiles("widgets/**.h")
-    add_headerfiles("rendering/**.h")
-    add_headerfiles("platform/**.h")
+    add_headerfiles("(core/**.h)")
+    add_headerfiles("(widgets/**.h)")
+    add_headerfiles("(rendering/**.h)")
+    add_headerfiles("(platform/**.h)")
 
     add_syslinks("opengl32", "user32", "gdi32", "dwmapi", "shell32")
 
-if has_config("opengl") then
+if has_config("examples") and has_config("opengl") then
     target("example_widgets")
         set_kind("binary")
         set_languages("c11")
