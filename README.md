@@ -2,13 +2,13 @@
 
 Bloom is an immediate-mode GUI library written in C.
 
-The short version: this project is for the kind of software people usually end up building with ImGui anyway. Overlays. Debug panels. Internal editors. Tool windows. Trainers. Reverse-engineering frontends. Memory tools. Config UIs that sit next to a game or attach to one.
+The short version: this project is for the kind of software people usually end up building with [ImGui](https://github.com/ocornut/imgui) anyway. Overlays. Debug panels. Internal editors. Tool windows. Trainers. Reverse-engineering frontends. Memory tools. Config UIs that sit next to a game or attach to one.
 
 Bloom is meant to live in that space on purpose.
 
-It is not trying to be a general desktop UI toolkit. It is not trying to look like a clone of ImGui either. The goal is simpler than that: make a practical immediate-mode library that can replace ImGui for a lot of native tool work, especially the game-hacking and game-tooling side of it.
+It is not trying to be a general desktop UI toolkit. It is not trying to look like a clone of [ImGui](https://github.com/ocornut/imgui) either. The goal is simpler than that: make a practical immediate-mode library that can replace [ImGui](https://github.com/ocornut/imgui) for a lot of native tool work, especially the game-hacking and game-tooling side of it.
 
-It is not source-compatible with ImGui. It is a replacement in the "same job, different library" sense.
+It is not source-compatible with [ImGui](https://github.com/ocornut/imgui). It is a replacement in the "same job, different library" sense.
 
 ## What Bloom Is For
 
@@ -24,7 +24,7 @@ If your UI mostly exists to expose values, toggle behavior, inspect state, or dr
 
 ## Why It Exists
 
-ImGui is good, but a lot of people use it for the exact same class of projects over and over: game-adjacent tools, overlays, live editors, and utility UIs. Bloom is built for that same category, with a different taste and a different set of defaults.
+[ImGui](https://github.com/ocornut/imgui) is good, but a lot of people use it for the exact same class of projects over and over: game-adjacent tools, overlays, live editors, and utility UIs. Bloom is built for that same category, with a different taste and a different set of defaults.
 
 What Bloom already gives you:
 
@@ -50,7 +50,7 @@ Bloom already has:
 
 ## Build
 
-Bloom uses xmake.
+Bloom uses [xmake](https://xmake.io/).
 
 Default build:
 
@@ -67,6 +67,41 @@ If you want D3D11 too:
 xmake f --d3d11=y -c -y
 xmake build
 ```
+
+## Add To Your Project
+
+Bloom is distributed through its own [xmake](https://xmake.io/) package repository. This is the supported package install path.
+
+Add this to your project's `xmake.lua`:
+
+```lua
+add_rules("mode.debug", "mode.release")
+
+add_repositories("bloom-xmake-repo https://github.com/wirespider87/bloom-xmake-repo.git")
+add_requires("bloom 1.0.1")
+
+target("your_app")
+	set_kind("binary")
+	set_languages("c11")
+	add_files("src/*.c")
+	add_packages("bloom")
+```
+
+Then include:
+
+```c
+#include "bloom.h"
+```
+
+If you want the D3D11 backend enabled from the package:
+
+```lua
+add_requires("bloom 1.0.1", {configs = {d3d11 = true}})
+```
+
+The self-hosted package repo is here:
+
+- [bloom-xmake-repo](https://github.com/wirespider87/bloom-xmake-repo)
 
 ## License
 
@@ -90,6 +125,6 @@ There is also a short [COMMIT_GUIDE.md](COMMIT_GUIDE.md) in the repo if you want
 
 Bloom is currently Windows-first.
 
-It is not trying to compete with Qt, WPF, or web UI frameworks. It is also not pretending to be a drop-in ImGui fork. It is a native immediate-mode GUI library aimed at tools, overlays, and game-facing utility software.
+It is not trying to compete with Qt, WPF, or web UI frameworks. It is also not pretending to be a drop-in [ImGui](https://github.com/ocornut/imgui) fork. It is a native immediate-mode GUI library aimed at tools, overlays, and game-facing utility software.
 
 If that is the kind of software you build, Bloom should make sense immediately.
