@@ -4,8 +4,8 @@
 
 #include "widgets/internal.h"
 
-/* deferred tooltip – stored each frame, flushed at end-of-frame into
-   foreground_draw_list so it always renders on top of all other widgets */
+/* deferred tooltip - stored each frame, flushed at end-of-frame into
+    foreground_draw_list so it always renders on top of all other widgets */
 static char   g_tooltip_text[512];
 static bloom_bool g_tooltip_pending = BLOOM_FALSE;
 

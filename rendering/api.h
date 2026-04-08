@@ -30,7 +30,8 @@ void bloom_destroy_opengl_backend(bloom_render_backend *backend);
 #if (defined(BLOOM_INTERNAL_BUILD) || defined(BLOOM_ENABLE_LEGACY_API)) && defined(BLOOM_D3D11_BACKEND)
 #ifdef _WIN32
 /* device/context are ID3D11Device* and ID3D11DeviceContext* - passed as void*
-   to avoid pulling d3d11.h into every translation unit */
+    to avoid pulling d3d11.h into every translation unit */
+
 bloom_render_backend *bloom_create_d3d11_backend(void *device, void *device_ctx);
 void bloom_destroy_d3d11_backend(bloom_render_backend *backend);
 #endif

@@ -869,9 +869,10 @@ static bloom_bool bloom_begin_internal(const char *name, bloom_i32 flags, bloom_
     win->smooth_scroll = smooth_scroll;
     win->last_frame_active = ctx->frame_count;
 
-    /* Child windows must always accept position/size from the parent
-       (set_next_window_pos/size) because the parent cursor moves each frame.
-       Top-level windows only accept it on the first frame (initial placement). */
+     /* Child windows must always accept position/size from the parent
+         (set_next_window_pos/size) because the parent cursor moves each frame.
+         Top-level windows only accept it on the first frame (initial placement). */
+
     {
         bloom_bool apply_pos = (first_frame || !win->appeared || (flags & BLOOM_WINDOW_CHILD));
         if (apply_pos && g_next_window_x > -FLT_MAX && g_next_window_y > -FLT_MAX)

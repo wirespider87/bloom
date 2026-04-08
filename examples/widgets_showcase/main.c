@@ -448,5 +448,3 @@ int main(void)
     return 0;
 }
 
-// xmake f --shared=y
-// xmake f --d3d11=y

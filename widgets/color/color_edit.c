@@ -213,12 +213,7 @@ static void bloom_color_draw_bar_marker(bloom_context *ctx, bloom_rect rect, blo
 
 static void bloom_color_draw_corner_masks(bloom_context *ctx, bloom_rect rect, bloom_f32 r)
 {
-    /*
-     * Fill the crescent between each square corner and its rounding arc
-     * using a triangle fan.  bloom_draw_rect_custom uses max_r uniformly
-     * (SDF limitation), so per-corner radii don't work — the old masks
-     * rendered as circles instead of one-corner-rounded rects.
-     */
+ 
     bloom_color card_fill;
     const bloom_f32 pi = 3.14159265f;
     const bloom_f32 half_pi = 1.57079633f;
@@ -1064,9 +1059,9 @@ static bloom_bool bloom_color_draw_tab_strip(bloom_context *ctx,
     return changed;
 }
 
-/* The unified color picker card.  Pass always_open=TRUE for the edit
+/* The unified color picker card. Pass always_open=TRUE for the edit
    variant (always expanded) or FALSE for the pick variant (swatch click
-   to expand/collapse).  Returns BLOOM_TRUE when col[] was modified. */
+   to expand/collapse). Returns BLOOM_TRUE when col[] was modified. */
 static bloom_bool bloom_color_picker_card(const char *label, bloom_f32 col[4],
                                            bloom_bool with_alpha, bloom_u32 flags,
                                            bloom_bool always_open)
@@ -1110,7 +1105,7 @@ static bloom_bool bloom_color_picker_card(const char *label, bloom_f32 col[4],
 
     bloom_color_sanitize(col, with_alpha);
 
-    /* --- preview banner (always drawn) --- */
+    /* preview banner (always drawn) */
     banner_pos = ctx->current_window->layout.cursor;
     bloom_color_draw_preview_banner(label, col, with_alpha);
 
@@ -1141,10 +1136,10 @@ static bloom_bool bloom_color_picker_card(const char *label, bloom_f32 col[4],
         }
     }
 
-    /* --- look up tab state --- */
+    /* look up tab state */
     active_tab = bloom_color_find_tab(tab_state_id, flags);
 
-    /* --- layout geometry --- */
+    /* layout geometry */
     pos         = ctx->current_window->layout.cursor;
     square_size = available_w - card_padding * 2.0f - bar_w - spacing;
     if (with_alpha)
@@ -1179,7 +1174,7 @@ static bloom_bool bloom_color_picker_card(const char *label, bloom_f32 col[4],
 
     bloom_color_draw_card(ctx, card_rect, s->input_rounding + 4.0f);
 
-    /* --- SV square + bars --- */
+    /* SV square + bars */
     square_rect = bloom_make_rect(pos.x + card_padding,
                                   pos.y + card_padding,
                                   square_size, square_size);
@@ -1197,7 +1192,7 @@ static bloom_bool bloom_color_picker_card(const char *label, bloom_f32 col[4],
                                                with_alpha, square_id, hue_id, alpha_id,
                                                hsv, col);
 
-    /* --- tab strip --- */
+    /* tab strip */
     {
         bloom_f32 strip_y = pos.y + card_padding + square_size + spacing;
         bloom_vec2 strip_pos = bloom_v2(pos.x + card_padding,
@@ -1207,7 +1202,7 @@ static bloom_bool bloom_color_picker_card(const char *label, bloom_f32 col[4],
         bloom_color_draw_tab_strip(ctx, strip_pos, strip_w, flags, active_tab);
     }
 
-    /* --- active tab fields --- */
+    /* active tab fields */
     {
         bloom_f32 fields_y = pos.y + card_padding + square_size +
                              spacing + tab_h + spacing;
@@ -1350,7 +1345,6 @@ static void bloom_color_draw_alpha_bar(bloom_context *ctx, bloom_rect rect, cons
     bloom_draw_pop_clip(&ctx->draw_list);
 }
 
-
 bloom_bool bloom_color_swatch(const char *label, const bloom_f32 col[4], bloom_f32 w, bloom_f32 h)
 {
     bloom_f32 col4[4];
@@ -1358,7 +1352,6 @@ bloom_bool bloom_color_swatch(const char *label, const bloom_f32 col[4], bloom_f
     bloom_color_sanitize(col4, BLOOM_TRUE);
     return bloom_color_swatch_row(label, col4, w, h, BLOOM_TRUE);
 }
-
 
 bloom_bool bloom_color_edit3(const char *label, bloom_f32 col[3])
 {

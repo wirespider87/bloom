@@ -383,7 +383,6 @@ void bloom_draw_label(bloom_context *ctx, bloom_vec2 pos, const char *label, blo
     bloom_draw_text_n(&ctx->draw_list, pos, label, visible_len, col, font_size, ctx->default_font.texture_id);
 }
 
-
 void bloom_buffer_clear(char *buf, bloom_u32 buf_size)
 {
     if (buf_size > 0)
@@ -456,7 +455,6 @@ void bloom_draw_soft_line(bloom_context *ctx, bloom_vec2 a, bloom_vec2 b,
     bloom_draw_line(&ctx->draw_list, a, b, bloom_scale_alpha(color, 0.20f), thickness + 1.4f);
     bloom_draw_line(&ctx->draw_list, a, b, color, thickness);
 }
-
 
 bloom_toggle_args bloom_resolve_toggle_args(const bloom_toggle_args *args)
 {

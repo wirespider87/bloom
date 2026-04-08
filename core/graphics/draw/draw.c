@@ -538,8 +538,8 @@ void bloom_draw_text_n(bloom_draw_list *dl, bloom_vec2 pos, const char *text, bl
                       bloom_color col, bloom_f32 font_size, bloom_u32 font_texture)
 {
     bloom_font *font = bloom_font_get_active();
-    bloom_f32 x = pos.x;
-    bloom_f32 y = pos.y;
+    bloom_f32 x = floorf(pos.x + 0.5f);
+    bloom_f32 y = floorf(pos.y + 0.5f);
     bloom_f32 scale = 1.0f;
     bloom_u32 old_tex = dl->current_texture;
     bloom_u32 idx = 0;
@@ -549,9 +549,6 @@ void bloom_draw_text_n(bloom_draw_list *dl, bloom_vec2 pos, const char *text, bl
         scale = font_size / font->size;
     }
 
-    x = floorf(x + 0.5f);
-    y = floorf(y + 0.5f);
-
     dl->current_texture = font_texture;
 
     while (idx < text_len)
@@ -560,7 +557,7 @@ void bloom_draw_text_n(bloom_draw_list *dl, bloom_vec2 pos, const char *text, bl
 
         if (ch_u8 == '\n')
         {
-            x = pos.x;
+            x = floorf(pos.x + 0.5f);
             y += font ? font->line_height * scale : font_size;
             idx++;
             continue;
@@ -577,6 +574,10 @@ void bloom_draw_text_n(bloom_draw_list *dl, bloom_vec2 pos, const char *text, bl
             bloom_f32 char_h = font_size;
             bloom_f32 gx0 = 0.0f;
             bloom_f32 gy0 = 0.0f;
+            bloom_f32 draw_x0;
+            bloom_f32 draw_y0;
+            bloom_f32 draw_x1;
+            bloom_f32 draw_y1;
             bloom_f32 u0;
             bloom_f32 v0;
             bloom_f32 u1;
@@ -609,17 +610,34 @@ void bloom_draw_text_n(bloom_draw_list *dl, bloom_vec2 pos, const char *text, bl
             {
                 bloom_u32 base = dl->vertex_count;
                 bloom_u32 c = bloom_color_to_u32(col);
-                bloom_vec2 center = bloom_v2(x + gx0 + char_w * 0.5f, y + gy0 + char_h * 0.5f);
-                bloom_vec2 half_size = bloom_v2(char_w * 0.5f, char_h * 0.5f);
+                bloom_vec2 center;
+                bloom_vec2 half_size;
+
+                draw_x0 = x + gx0;
+                draw_y0 = y + gy0;
+                draw_x1 = draw_x0 + char_w;
+                draw_y1 = draw_y0 + char_h;
+
+                if (draw_x1 <= draw_x0)
+                {
+                    draw_x1 = draw_x0 + 1.0f;
+                }
+                if (draw_y1 <= draw_y0)
+                {
+                    draw_y1 = draw_y0 + 1.0f;
+                }
+
+                center = bloom_v2((draw_x0 + draw_x1) * 0.5f, (draw_y0 + draw_y1) * 0.5f);
+                half_size = bloom_v2((draw_x1 - draw_x0) * 0.5f, (draw_y1 - draw_y0) * 0.5f);
 
                 dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(
-                    bloom_v2(x + gx0, y + gy0), center, half_size, bloom_v2(u0, v0), c, 0.0f, 0.0f, BLOOM_ELEM_MSDF_TEXT);
+                    bloom_v2(draw_x0, draw_y0), center, half_size, bloom_v2(u0, v0), c, 0.0f, 0.0f, BLOOM_ELEM_MSDF_TEXT);
                 dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(
-                    bloom_v2(x + gx0 + char_w, y + gy0), center, half_size, bloom_v2(u1, v0), c, 0.0f, 0.0f, BLOOM_ELEM_MSDF_TEXT);
+                    bloom_v2(draw_x1, draw_y0), center, half_size, bloom_v2(u1, v0), c, 0.0f, 0.0f, BLOOM_ELEM_MSDF_TEXT);
                 dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(
-                    bloom_v2(x + gx0 + char_w, y + gy0 + char_h), center, half_size, bloom_v2(u1, v1), c, 0.0f, 0.0f, BLOOM_ELEM_MSDF_TEXT);
+                    bloom_v2(draw_x1, draw_y1), center, half_size, bloom_v2(u1, v1), c, 0.0f, 0.0f, BLOOM_ELEM_MSDF_TEXT);
                 dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(
-                    bloom_v2(x + gx0, y + gy0 + char_h), center, half_size, bloom_v2(u0, v1), c, 0.0f, 0.0f, BLOOM_ELEM_MSDF_TEXT);
+                    bloom_v2(draw_x0, draw_y1), center, half_size, bloom_v2(u0, v1), c, 0.0f, 0.0f, BLOOM_ELEM_MSDF_TEXT);
 
                 dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 0);
                 dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 1);
@@ -674,7 +692,11 @@ bloom_f32 bloom_text_width_n(const char *text, bloom_u32 text_len, bloom_f32 fon
                 }
                 else
                 {
-                    line_w += bloom_font_char_width(font, (bloom_u32)(bloom_u8)text[i]) * scale;
+                    bloom_u32 codepoint = (bloom_u32)(bloom_u8)text[i];
+                    if (codepoint >= 32)
+                    {
+                        line_w += bloom_font_char_width(font, codepoint) * scale;
+                    }
                 }
             }
             if (line_w > w) w = line_w;
