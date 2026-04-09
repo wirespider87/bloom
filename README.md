@@ -88,7 +88,7 @@ The integration paths below were smoke-tested on Windows x64 in both C and C++ w
 ### Xmake Package Setup
 
 <details>
-<summary><strong>Xmake Package Setup</strong> — use <code>bloom-packages</code> and <code>add_requires("bloom 1.0.2")</code></summary>
+<summary><strong>Xmake Package Setup</strong> - use <code>bloom-packages</code> and <code>add_requires("bloom 1.0.2")</code></summary>
 
 Bloom is distributed through its own [xmake](https://xmake.io/) package repository.
 
@@ -144,7 +144,7 @@ The self-hosted package repo is here:
 ### CMake Source Integration
 
 <details>
-<summary><strong>CMake Source Integration</strong> — vendor Bloom and build it as a static library from source</summary>
+<summary><strong>CMake Source Integration</strong> - vendor Bloom and build it as a static library from source</summary>
 
 If you are using CMake, the simplest path is to vendor Bloom into your source tree and build it as a static library from source.
 
@@ -191,7 +191,7 @@ Keep `opengl32` linked even in that setup. The current Win32 platform layer stil
 ### Visual Studio Solution Integration
 
 <details>
-<summary><strong>Visual Studio Solution Integration</strong> — add Bloom source directly to a <code>.sln</code> and build for <code>Release|x64</code></summary>
+<summary><strong>Visual Studio Solution Integration</strong> - add Bloom source directly to a <code>.sln</code> and build for <code>Release|x64</code></summary>
 
 If you are working directly in a Visual Studio `.sln` instead of CMake or [xmake](https://xmake.io/), add Bloom as source.
 
