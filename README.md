@@ -1,10 +1,10 @@
-# Bloom
+# bloom
 
-Bloom is an immediate-mode GUI library written in C.
+bloom is an immediate-mode GUI library written in C.
 
 The short version: this project is for the kind of software people usually end up building with [ImGui](https://github.com/ocornut/imgui) anyway. Overlays. Debug panels. Internal editors. Tool windows. Trainers. Reverse-engineering frontends. Memory tools. Config UIs that sit next to a game or attach to one.
 
-Bloom is meant to live in that space on purpose.
+bloom is meant to live in that space on purpose.
 
 It is not trying to be a general desktop UI toolkit. It is not trying to look like a clone of [ImGui](https://github.com/ocornut/imgui) either. The goal is simpler than that: make a practical immediate-mode library that can replace [ImGui](https://github.com/ocornut/imgui) for a lot of native tool work, especially the game-hacking and game-tooling side of it.
 
@@ -12,7 +12,7 @@ It is not source-compatible with [ImGui](https://github.com/ocornut/imgui). It i
 
 ## Quick Jump
 
-- [What Bloom Is For](#what-bloom-is-for)
+- [What bloom Is For](#what-bloom-is-for)
 - [Build](#build)
 - [Add To Your Project](#add-to-your-project)
 - [Xmake Package Setup](#xmake-package-setup)
@@ -21,7 +21,7 @@ It is not source-compatible with [ImGui](https://github.com/ocornut/imgui). It i
 - [License](#license)
 - [Start Here](#start-here)
 
-## What Bloom Is For
+## What bloom Is For
 
 - in-game overlays
 - external tool windows
@@ -31,13 +31,13 @@ It is not source-compatible with [ImGui](https://github.com/ocornut/imgui). It i
 - game hacking utilities
 - launchers, config tools, and other native helper apps
 
-If your UI mostly exists to expose values, toggle behavior, inspect state, or drive a renderer-backed tool, Bloom is the target.
+If your UI mostly exists to expose values, toggle behavior, inspect state, or drive a renderer-backed tool, bloom is the target.
 
 ## Why It Exists
 
-[ImGui](https://github.com/ocornut/imgui) is good, but a lot of people use it for the exact same class of projects over and over: game-adjacent tools, overlays, live editors, and utility UIs. Bloom is built for that same category, with a different taste and a different set of defaults.
+[ImGui](https://github.com/ocornut/imgui) is good, but a lot of people use it for the exact same class of projects over and over: game-adjacent tools, overlays, live editors, and utility UIs. bloom is built for that same category, with a different taste and a different set of defaults.
 
-What Bloom already gives you:
+What bloom already gives you:
 
 - plain C API through `bloom.h`
 - immediate-mode workflow
@@ -48,7 +48,7 @@ What Bloom already gives you:
 
 ## What Is In The Repo Right Now
 
-Bloom already has:
+bloom already has:
 
 - windows, child windows, layout, draw lists, input, styling, animation, memory helpers, and hashing
 - text, buttons, ghost buttons, directional buttons, checkboxes, toggles, radio buttons, hyperlinks, spinners, and progress bars
@@ -61,7 +61,7 @@ Bloom already has:
 
 ## Build
 
-Bloom uses [xmake](https://xmake.io/).
+bloom uses [xmake](https://xmake.io/).
 
 Default build:
 
@@ -81,7 +81,7 @@ xmake build
 
 ## Add To Your Project
 
-Bloom works in both C and C++ projects. The library itself is C, but `bloom.h` can be included from either language.
+bloom works in both C and C++ projects. The library itself is C, but `bloom.h` can be included from either language.
 
 The integration paths below were smoke-tested on Windows x64 in both C and C++ where applicable.
 
@@ -90,7 +90,7 @@ The integration paths below were smoke-tested on Windows x64 in both C and C++ w
 <details>
 <summary><strong>Xmake Package Setup</strong> - use <code>bloom-packages</code> and <code>add_requires("bloom 1.0.2")</code></summary>
 
-Bloom is distributed through its own [xmake](https://xmake.io/) package repository.
+bloom is distributed through its own [xmake](https://xmake.io/) package repository.
 
 Add this to your project's `xmake.lua`:
 
@@ -144,9 +144,9 @@ The self-hosted package repo is here:
 ### CMake Source Integration
 
 <details>
-<summary><strong>CMake Source Integration</strong> - vendor Bloom and build it as a static library from source</summary>
+<summary><strong>CMake Source Integration</strong> - vendor bloom and build it as a static library from source</summary>
 
-If you are using CMake, the simplest path is to vendor Bloom into your source tree and build it as a static library from source.
+If you are using CMake, the simplest path is to vendor bloom into your source tree and build it as a static library from source.
 
 Example `CMakeLists.txt`:
 
@@ -191,28 +191,28 @@ Keep `opengl32` linked even in that setup. The current Win32 platform layer stil
 ### Visual Studio Solution Integration
 
 <details>
-<summary><strong>Visual Studio Solution Integration</strong> - add Bloom source directly to a <code>.sln</code> and build for <code>Release|x64</code></summary>
+<summary><strong>Visual Studio Solution Integration</strong> - add bloom source directly to a <code>.sln</code> and build for <code>Release|x64</code></summary>
 
-If you are working directly in a Visual Studio `.sln` instead of CMake or [xmake](https://xmake.io/), add Bloom as source.
+If you are working directly in a Visual Studio `.sln` instead of CMake or [xmake](https://xmake.io/), add bloom as source.
 
 - Use `x64`. The validated smoke solution was built as `Release|x64`.
-- Put the Bloom repo somewhere inside your solution tree, for example `external\bloom`.
-- Create a `Static Library` project for Bloom, or add Bloom's `.c` files directly to your existing app project.
+- Put the bloom repo somewhere inside your solution tree, for example `external\bloom`.
+- Create a `Static Library` project for bloom, or add bloom's `.c` files directly to your existing app project.
 - Add the `.c` files under `core`, `widgets`, `platform\win32`, and the rendering backend folder you want.
-- Add the Bloom root folder to `Additional Include Directories`.
+- Add the bloom root folder to `Additional Include Directories`.
 - Add `BLOOM_OPENGL_BACKEND` to `Preprocessor Definitions` for the default OpenGL path.
 - If you also want D3D11, add the `rendering\d3d11` sources and define `BLOOM_D3D11_BACKEND` too.
 - Link `opengl32.lib`, `user32.lib`, `gdi32.lib`, `dwmapi.lib`, and `shell32.lib`.
 - If D3D11 is enabled, also link `d3d11.lib`, `dxgi.lib`, and `d3dcompiler.lib`.
 - Include `bloom.h` from either C or C++ source files.
 
-For Visual Studio C++ projects, keep Bloom's own files as `.c` sources, keep your application files as `.cpp`, and include `bloom.h` normally from your C++ code.
+For Visual Studio C++ projects, keep bloom's own files as `.c` sources, keep your application files as `.cpp`, and include `bloom.h` normally from your C++ code.
 
 </details>
 
 ## License
 
-Bloom is released under `0BSD`.
+bloom is released under `0BSD`.
 
 That means people can use it, modify it, ship it, and fold it into other projects without attribution requirements.
 
@@ -228,10 +228,10 @@ If you want to integrate it, include:
 
 There is also a short [COMMIT_GUIDE.md](COMMIT_GUIDE.md) in the repo if you want the house rules for commits.
 
-## What Bloom Is Not
+## What bloom Is Not
 
-Bloom is currently Windows-first.
+bloom is currently Windows-first.
 
 It is not trying to compete with Qt, WPF, or web UI frameworks. It is also not pretending to be a drop-in [ImGui](https://github.com/ocornut/imgui) fork. It is a native immediate-mode GUI library aimed at tools, overlays, and game-facing utility software.
 
-If that is the kind of software you build, Bloom should make sense immediately.
+If that is the kind of software you build, bloom should make sense immediately.
