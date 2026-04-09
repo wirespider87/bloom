@@ -8,6 +8,10 @@
 #include "rendering/api.h"
 #include "platform/api.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct bloom_memory_api
 {
 	void  (*arena_init)(bloom_arena *a, void *buffer, bloom_u64 size);
@@ -283,5 +287,9 @@ typedef struct bloom_api
 } bloom_api;
 
 extern const bloom_api *bloom;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
