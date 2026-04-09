@@ -70,15 +70,19 @@ xmake build
 
 ## Add To Your Project
 
-Bloom is distributed through its own [xmake](https://xmake.io/) package repository. This is the supported package install path.
+Bloom works in both C and C++ projects. The library itself is C, but `bloom.h` can be included from either language.
+
+### xmake
+
+Bloom is distributed through its own [xmake](https://xmake.io/) package repository.
 
 Add this to your project's `xmake.lua`:
 
 ```lua
 add_rules("mode.debug", "mode.release")
 
-add_repositories("bloom-xmake-repo https://github.com/wirespider87/bloom-xmake-repo.git")
-add_requires("bloom 1.0.1")
+add_repositories("bloom-packages https://github.com/wirespider87/bloom-packages.git")
+add_requires("bloom 1.0.2")
 
 target("your_app")
 	set_kind("binary")
@@ -86,6 +90,8 @@ target("your_app")
 	add_files("src/*.c")
 	add_packages("bloom")
 ```
+
+For a C++ target, keep the same package setup and change the target language, for example `set_languages("cxx17")`.
 
 Then include:
 
@@ -96,12 +102,68 @@ Then include:
 If you want the D3D11 backend enabled from the package:
 
 ```lua
-add_requires("bloom 1.0.1", {configs = {d3d11 = true}})
+add_requires("bloom 1.0.2", {configs = {d3d11 = true}})
 ```
 
 The self-hosted package repo is here:
 
-- [bloom-xmake-repo](https://github.com/wirespider87/bloom-xmake-repo)
+- [bloom-packages](https://github.com/wirespider87/bloom-packages)
+
+### CMake
+
+If you are using CMake, the simplest path is to vendor Bloom into your source tree and build it as a static library from source.
+
+Example `CMakeLists.txt`:
+
+```cmake
+cmake_minimum_required(VERSION 3.21)
+project(MyApp C CXX)
+
+set(BLOOM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/external/bloom")
+
+file(GLOB_RECURSE BLOOM_CORE_SOURCES CONFIGURE_DEPENDS
+	"${BLOOM_ROOT}/core/*.c")
+file(GLOB_RECURSE BLOOM_WIDGET_SOURCES CONFIGURE_DEPENDS
+	"${BLOOM_ROOT}/widgets/*.c")
+file(GLOB BLOOM_PLATFORM_SOURCES CONFIGURE_DEPENDS
+	"${BLOOM_ROOT}/platform/win32/*.c")
+file(GLOB BLOOM_OPENGL_SOURCES CONFIGURE_DEPENDS
+	"${BLOOM_ROOT}/rendering/opengl/*.c")
+
+add_library(bloom STATIC
+	${BLOOM_CORE_SOURCES}
+	${BLOOM_WIDGET_SOURCES}
+	${BLOOM_PLATFORM_SOURCES}
+	${BLOOM_OPENGL_SOURCES})
+
+target_include_directories(bloom PUBLIC "${BLOOM_ROOT}")
+target_compile_features(bloom PUBLIC c_std_11)
+target_compile_definitions(bloom PUBLIC BLOOM_OPENGL_BACKEND)
+target_link_libraries(bloom PUBLIC opengl32 user32 gdi32 dwmapi shell32)
+
+add_executable(your_app src/main.cpp)
+target_link_libraries(your_app PRIVATE bloom)
+```
+
+If you want D3D11 too, also add the sources under `rendering/d3d11`, define `BLOOM_D3D11_BACKEND`, and link `d3d11`, `dxgi`, and `d3dcompiler`.
+
+Keep `opengl32` linked even in that setup. The current Win32 platform layer still uses WGL during platform/context setup.
+
+### Visual Studio Solutions
+
+If you are working directly in a Visual Studio `.sln` instead of CMake or [xmake](https://xmake.io/), add Bloom as source.
+
+- Put the Bloom repo somewhere inside your solution tree, for example `external\bloom`.
+- Create a `Static Library` project for Bloom, or add Bloom's `.c` files directly to your existing app project.
+- Add the `.c` files under `core`, `widgets`, `platform\win32`, and the rendering backend folder you want.
+- Add the Bloom root folder to `Additional Include Directories`.
+- Add `BLOOM_OPENGL_BACKEND` to `Preprocessor Definitions` for the default OpenGL path.
+- If you also want D3D11, add the `rendering\d3d11` sources and define `BLOOM_D3D11_BACKEND` too.
+- Link `opengl32.lib`, `user32.lib`, `gdi32.lib`, `dwmapi.lib`, and `shell32.lib`.
+- If D3D11 is enabled, also link `d3d11.lib`, `dxgi.lib`, and `d3dcompiler.lib`.
+- Include `bloom.h` from either C or C++ source files.
+
+For Visual Studio C++ projects, you can keep Bloom's own files as `.c` sources and still include `bloom.h` normally from your C++ code.
 
 ## License
 
