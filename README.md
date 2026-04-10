@@ -88,7 +88,7 @@ The integration paths below were smoke-tested on Windows x64 in both C and C++ w
 ### Xmake Package Setup
 
 <details>
-<summary><strong>Xmake Package Setup</strong> - use <code>bloom-packages</code> and <code>add_requires("bloom 1.0.2")</code></summary>
+<summary><strong>Xmake Package Setup</strong> - use <code>bloom-packages</code> and <code>add_requires("bloom 1.0.3")</code></summary>
 
 bloom is distributed through its own [xmake](https://xmake.io/) package repository.
 
@@ -98,7 +98,7 @@ Add this to your project's `xmake.lua`:
 add_rules("mode.debug", "mode.release")
 
 add_repositories("bloom-packages https://github.com/wirespider87/bloom-packages.git")
-add_requires("bloom 1.0.2")
+add_requires("bloom 1.0.3")
 
 target("your_app")
 	set_kind("binary")
@@ -126,7 +126,7 @@ Then include:
 If you want the D3D11 backend enabled from the package:
 
 ```lua
-add_requires("bloom 1.0.2", {configs = {d3d11 = true}})
+add_requires("bloom 1.0.3", {configs = {d3d11 = true}})
 ```
 
 If you add the repository and `xmake` does not see `bloom` immediately, run this once:

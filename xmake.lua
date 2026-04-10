@@ -1,5 +1,5 @@
 set_project("bloom")
-set_version("1.0.2")
+set_version("1.0.3")
 
 add_rules("mode.debug", "mode.release")
 
