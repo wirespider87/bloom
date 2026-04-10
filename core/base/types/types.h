@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,10 +19,10 @@ typedef int32_t  bloom_i32;
 typedef int64_t  bloom_i64;
 typedef float    bloom_f32;
 typedef double   bloom_f64;
-typedef int      bloom_bool;
+typedef bool     bloom_bool;
 
-#define BLOOM_TRUE  1
-#define BLOOM_FALSE 0
+#define BLOOM_TRUE  true
+#define BLOOM_FALSE false
 
 #define BLOOM_MAX_WINDOWS     128
 #define BLOOM_MAX_ID_STACK    64
