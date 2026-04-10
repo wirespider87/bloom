@@ -28,17 +28,17 @@ void bloom_input_begin(bloom_input *input)
     input->mouse_pos = prev_pos;
 }
 
-void bloom_input_set_mouse_pos(bloom_input *input, bloom_f32 x, bloom_f32 y)
+void bloom_input_set_mouse_pos(bloom_input *input, float x, float y)
 {
-    bloom_f32 old_x = input->mouse_pos.x;
-    bloom_f32 old_y = input->mouse_pos.y;
+    float old_x = input->mouse_pos.x;
+    float old_y = input->mouse_pos.y;
     input->mouse_pos.x = x;
     input->mouse_pos.y = y;
     input->mouse_delta.x = x - old_x;
     input->mouse_delta.y = y - old_y;
 }
 
-void bloom_input_set_mouse_button(bloom_input *input, int button, bloom_bool down)
+void bloom_input_set_mouse_button(bloom_input *input, int button, bool down)
 {
     if (button < 0 || button >= BLOOM_MOUSE_COUNT)
     {
@@ -55,26 +55,28 @@ void bloom_input_set_mouse_button(bloom_input *input, int button, bloom_bool dow
     input->mouse_down[button] = down;
 }
 
-void bloom_input_set_mouse_wheel(bloom_input *input, bloom_f32 delta)
+void bloom_input_set_mouse_wheel(bloom_input *input, float delta)
 {
     input->mouse_wheel = delta;
 }
 
-void bloom_input_set_key(bloom_input *input, int key, bloom_bool down)
+void bloom_input_set_key(bloom_input *input, int key, bool down)
 {
-    if (key < 0 || key >= BLOOM_KEY_COUNT)
+    unsigned int key_index = (unsigned int)key;
+
+    if (key_index == BLOOM_KEY_NONE || key_index >= BLOOM_KEY_COUNT)
     {
         return;
     }
-    if (down && !input->keys_down[key])
+    if (down && !input->keys_down[key_index])
     {
-        input->keys_pressed[key] = BLOOM_TRUE;
+        input->keys_pressed[key_index] = BLOOM_TRUE;
     }
-    if (!down && input->keys_down[key])
+    if (!down && input->keys_down[key_index])
     {
-        input->keys_released[key] = BLOOM_TRUE;
+        input->keys_released[key_index] = BLOOM_TRUE;
     }
-    input->keys_down[key] = down;
+    input->keys_down[key_index] = down;
 }
 
 void bloom_input_add_char(bloom_input *input, char c)

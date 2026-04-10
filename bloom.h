@@ -34,10 +34,10 @@ typedef struct bloom_hash_api
 typedef struct bloom_input_api
 {
 	void (*begin)(bloom_input *input);
-	void (*set_mouse_pos)(bloom_input *input, bloom_f32 x, bloom_f32 y);
-	void (*set_mouse_button)(bloom_input *input, int button, bloom_bool down);
-	void (*set_mouse_wheel)(bloom_input *input, bloom_f32 delta);
-	void (*set_key)(bloom_input *input, int key, bloom_bool down);
+	void (*set_mouse_pos)(bloom_input *input, float x, float y);
+	void (*set_mouse_button)(bloom_input *input, int button, bool down);
+	void (*set_mouse_wheel)(bloom_input *input, float delta);
+	void (*set_key)(bloom_input *input, int key, bool down);
 	void (*add_char)(bloom_input *input, char c);
 } bloom_input_api;
 

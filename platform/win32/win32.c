@@ -454,31 +454,6 @@ cleanup:
     return pixel_format;
 }
 
-static int bloom_translate_key(WPARAM wp)
-{
-    switch (wp)
-    {
-    case VK_TAB:    return BLOOM_KEY_TAB;
-    case VK_LEFT:   return BLOOM_KEY_LEFT;
-    case VK_RIGHT:  return BLOOM_KEY_RIGHT;
-    case VK_UP:     return BLOOM_KEY_UP;
-    case VK_DOWN:   return BLOOM_KEY_DOWN;
-    case VK_HOME:   return BLOOM_KEY_HOME;
-    case VK_END:    return BLOOM_KEY_END;
-    case VK_DELETE: return BLOOM_KEY_DELETE;
-    case VK_BACK:   return BLOOM_KEY_BACKSPACE;
-    case VK_RETURN: return BLOOM_KEY_ENTER;
-    case VK_ESCAPE: return BLOOM_KEY_ESCAPE;
-    case 'A':       return BLOOM_KEY_A;
-    case 'C':       return BLOOM_KEY_C;
-    case 'V':       return BLOOM_KEY_V;
-    case 'X':       return BLOOM_KEY_X;
-    case 'Y':       return BLOOM_KEY_Y;
-    case 'Z':       return BLOOM_KEY_Z;
-    default:        return BLOOM_KEY_NONE;
-    }
-}
-
 static bloom_bool bloom_platform_point_in_rect(POINT point, bloom_rect rect)
 {
     return point.x >= (LONG)rect.x &&
@@ -749,10 +724,9 @@ static LRESULT CALLBACK bloom_wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
     case WM_SYSKEYDOWN:
         if (input)
         {
-            int key = bloom_translate_key(wp);
-            if (key != BLOOM_KEY_NONE)
+            if (wp > 0 && wp < BLOOM_KEY_COUNT)
             {
-                bloom_input_set_key(input, key, BLOOM_TRUE);
+                bloom_input_set_key(input, (int)wp, BLOOM_TRUE);
             }
             input->ctrl_held = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
             input->shift_held = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
@@ -764,10 +738,9 @@ static LRESULT CALLBACK bloom_wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
     case WM_SYSKEYUP:
         if (input)
         {
-            int key = bloom_translate_key(wp);
-            if (key != BLOOM_KEY_NONE)
+            if (wp > 0 && wp < BLOOM_KEY_COUNT)
             {
-                bloom_input_set_key(input, key, BLOOM_FALSE);
+                bloom_input_set_key(input, (int)wp, BLOOM_FALSE);
             }
             input->ctrl_held = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
             input->shift_held = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
