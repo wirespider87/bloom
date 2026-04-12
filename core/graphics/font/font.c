@@ -3,6 +3,9 @@
 #endif
 
 #include "core/graphics/font/font.h"
+#include "core/base/utf8.h"
+#include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -19,6 +22,104 @@
 #endif
 static bloom_font *g_bloom_active_font = NULL;
 
+typedef struct bloom_font_cp_sort
+{
+    bloom_u32 cp;
+    bloom_u16 slot;
+} bloom_font_cp_sort;
+
+static int bloom_font_cp_sort_cmp(const void *a, const void *b)
+{
+    bloom_u32 ac = ((const bloom_font_cp_sort *)a)->cp;
+    bloom_u32 bc = ((const bloom_font_cp_sort *)b)->cp;
+    if (ac < bc)
+    {
+        return -1;
+    }
+    if (ac > bc)
+    {
+        return 1;
+    }
+    return 0;
+}
+
+static bloom_bool bloom_font_build_sorted_lookup(bloom_font *font)
+{
+    bloom_font_cp_sort *pairs;
+    bloom_u32 i;
+
+    if (!font || font->glyph_count == 0 || !font->glyphs)
+    {
+        return BLOOM_FALSE;
+    }
+
+    pairs = (bloom_font_cp_sort *)malloc(sizeof(bloom_font_cp_sort) * font->glyph_count);
+    if (!pairs)
+    {
+        return BLOOM_FALSE;
+    }
+
+    for (i = 0; i < font->glyph_count; ++i)
+    {
+        pairs[i].cp = font->glyphs[i].codepoint;
+        pairs[i].slot = (bloom_u16)i;
+    }
+
+    qsort(pairs, (size_t)font->glyph_count, sizeof(bloom_font_cp_sort), bloom_font_cp_sort_cmp);
+
+    font->glyph_sorted_cp = (bloom_u32 *)malloc(sizeof(bloom_u32) * font->glyph_count);
+    font->glyph_sorted_slot = (bloom_u16 *)malloc(sizeof(bloom_u16) * font->glyph_count);
+    if (!font->glyph_sorted_cp || !font->glyph_sorted_slot)
+    {
+        free(pairs);
+        free(font->glyph_sorted_cp);
+        free(font->glyph_sorted_slot);
+        font->glyph_sorted_cp = NULL;
+        font->glyph_sorted_slot = NULL;
+        return BLOOM_FALSE;
+    }
+
+    for (i = 0; i < font->glyph_count; ++i)
+    {
+        font->glyph_sorted_cp[i] = pairs[i].cp;
+        font->glyph_sorted_slot[i] = pairs[i].slot;
+    }
+
+    free(pairs);
+    return BLOOM_TRUE;
+}
+
+bloom_i32 bloom_font_glyph_slot(bloom_font *font, bloom_u32 codepoint)
+{
+    bloom_u32 lo = 0;
+    bloom_u32 hi;
+
+    if (!font || !font->glyph_sorted_cp || font->glyph_count == 0)
+    {
+        return -1;
+    }
+
+    hi = font->glyph_count;
+    while (lo < hi)
+    {
+        bloom_u32 mid = (lo + hi) >> 1;
+        bloom_u32 k = font->glyph_sorted_cp[mid];
+        if (k < codepoint)
+        {
+            lo = mid + 1;
+        }
+        else if (k > codepoint)
+        {
+            hi = mid;
+        }
+        else
+        {
+            return (bloom_i32)font->glyph_sorted_slot[mid];
+        }
+    }
+    return -1;
+}
+
 void bloom_font_set_active(bloom_font *font)
 {
     g_bloom_active_font = font;
@@ -28,8 +129,6 @@ bloom_font *bloom_font_get_active(void)
 {
     return g_bloom_active_font;
 }
-
-#ifdef _WIN32
 
 /* extract font family name from raw TTF/OTF data (platform 3 UTF-16BE or platform 1 ASCII) */
 static bloom_bool bloom_font_extract_ttf_name(const bloom_u8 *data, bloom_u64 data_size,
@@ -149,6 +248,42 @@ static int bloom_font_align_down_int(int value, int alignment)
     return value - remainder;
 }
 
+#define BLOOM_FONT_ATLAS_COLUMNS 32
+#define BLOOM_FONT_ATLAS_ROWS    16
+
+static int bloom_font_fill_default_codepoints(bloom_u32 *out, int max_out)
+{
+    static const bloom_u32 cjk_demo[] = {
+        0x4E2D, 0x6587, 0x754C, 0x9762, 0x6D4B, 0x8BD5
+    };
+    int n = 0;
+    int i;
+
+    for (i = 32; i <= 127 && n < max_out; ++i)
+    {
+        out[n++] = (bloom_u32)i;
+    }
+    for (i = 0xA0; i <= 0xFF && n < max_out; ++i)
+    {
+        out[n++] = (bloom_u32)i;
+    }
+    for (i = 0; i < 256 && n < max_out; ++i)
+    {
+        out[n++] = (bloom_u32)(0x0400 + i);
+    }
+    for (i = 0; i < (int)(sizeof(cjk_demo) / sizeof(cjk_demo[0])) && n < max_out; ++i)
+    {
+        out[n++] = cjk_demo[i];
+    }
+    for (i = 0x05D0; i <= 0x05EA && n < max_out; ++i)
+    {
+        out[n++] = (bloom_u32)i;
+    }
+    return n;
+}
+
+#ifdef _WIN32
+
 static bloom_f32 bloom_font_source_coverage(bloom_u32 pixel)
 {
     bloom_u8 blue = (bloom_u8)(pixel & 0xFF);
@@ -204,10 +339,10 @@ static bloom_u8 bloom_font_downsample_coverage(const bloom_u32 *src_pixels,
 static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, const char *face_name)
 {
     const int oversample = 4;
-    const int first_char = 32;
-    const int glyph_count = 96;
-    const int columns = 16;
-    const int rows = 6;
+    const int columns = BLOOM_FONT_ATLAS_COLUMNS;
+    const int rows = BLOOM_FONT_ATLAS_ROWS;
+    bloom_u32 codepoints[BLOOM_FONT_ATLAS_COLUMNS * BLOOM_FONT_ATLAS_ROWS];
+    int glyph_count;
     const int raster_size = (int)ceilf(size * (bloom_f32)oversample);
     const int src_cell_w = bloom_font_align_up_int(raster_size * 2, oversample);
     const int src_cell_h = bloom_font_align_up_int(raster_size * 2, oversample);
@@ -296,11 +431,17 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
         goto cleanup;
     }
 
+    glyph_count = bloom_font_fill_default_codepoints(codepoints, columns * rows);
+    if (glyph_count <= 0 || glyph_count > columns * rows)
+    {
+        goto cleanup;
+    }
+
     font->atlas_width = (bloom_u32)dst_atlas_w;
     font->atlas_height = (bloom_u32)dst_atlas_h;
     font->atlas_pixels = (bloom_u8 *)malloc((size_t)dst_atlas_w * (size_t)dst_atlas_h);
-    font->glyph_capacity = glyph_count;
-    font->glyphs = (bloom_glyph *)malloc(sizeof(bloom_glyph) * glyph_count);
+    font->glyph_capacity = (bloom_u32)glyph_count;
+    font->glyphs = (bloom_glyph *)malloc(sizeof(bloom_glyph) * (size_t)glyph_count);
     if (!font->atlas_pixels || !font->glyphs)
     {
         goto cleanup;
@@ -309,7 +450,8 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
 
     for (i = 0; i < glyph_count; ++i)
     {
-        char text[2];
+        bloom_u32 cp = codepoints[i];
+        WCHAR wch = (WCHAR)((cp <= 0xFFFFu) ? cp : 0xFFFDu);
         SIZE extent;
         int col = i % columns;
         int row = i / columns;
@@ -326,11 +468,8 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
         int dst_y1;
         bloom_glyph *g;
 
-        text[0] = (char)(first_char + i);
-        text[1] = '\0';
-
         PatBlt(mem_dc, src_cell_x, src_cell_y, src_cell_w, src_cell_h, BLACKNESS);
-        GetTextExtentPoint32A(mem_dc, text, 1, &extent);
+        GetTextExtentPoint32W(mem_dc, &wch, 1, &extent);
 
         draw_y_offset = bloom_font_align_down_int((src_cell_h - tm.tmHeight) / 2, oversample);
         if (draw_y_offset < 0)
@@ -340,7 +479,7 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
 
         draw_x = src_cell_x + glyph_padding;
         draw_y = src_cell_y + draw_y_offset;
-        TextOutA(mem_dc, draw_x, draw_y, text, 1);
+        TextOutW(mem_dc, draw_x, draw_y, &wch, 1);
 
         dst_x0 = dst_cell_x + ((draw_x - src_cell_x) / oversample);
         dst_y0 = dst_cell_y + ((draw_y - src_cell_y) / oversample);
@@ -348,7 +487,7 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
         dst_y1 = dst_y0 + (bloom_font_align_up_int(tm.tmHeight, oversample) / oversample);
 
         g = &font->glyphs[i];
-        g->codepoint = (bloom_u32)(first_char + i);
+        g->codepoint = cp;
         g->advance = (bloom_f32)extent.cx * inv_os;
         if (g->advance < size * 0.33f)
         {
@@ -379,17 +518,28 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
         }
     }
 
-    font->glyph_count = glyph_count;
+    font->glyph_count = (bloom_u32)glyph_count;
     font->size = size;
     font->ascent = (bloom_f32)tm.tmAscent * inv_os;
     font->descent = (bloom_f32)tm.tmDescent * inv_os;
     font->line_height = (bloom_f32)(tm.tmHeight + tm.tmExternalLeading) * inv_os;
+
+    if (!bloom_font_build_sorted_lookup(font))
+    {
+        ok = BLOOM_FALSE;
+        goto cleanup;
+    }
+
     font->valid = BLOOM_TRUE;
     ok = BLOOM_TRUE;
 
 cleanup:
     if (!ok)
     {
+        free(font->glyph_sorted_cp);
+        free(font->glyph_sorted_slot);
+        font->glyph_sorted_cp = NULL;
+        font->glyph_sorted_slot = NULL;
         free(font->atlas_pixels);
         free(font->glyphs);
         font->atlas_pixels = NULL;
@@ -425,6 +575,7 @@ static bloom_bool bloom_font_build_gdi(bloom_font *font, bloom_f32 size)
 {
     static const char *const candidates[] = {
         "Segoe UI",
+        "Microsoft YaHei UI",
         "Arial",
         "Tahoma"
     };
@@ -443,6 +594,286 @@ static bloom_bool bloom_font_build_gdi(bloom_font *font, bloom_f32 size)
 
 #endif
 
+#ifndef _WIN32
+
+#include "core/graphics/font/bloom_ttf.h"
+
+static void bloom_font_ttf_blit(bloom_u8 *atlas, int atlas_w, int atlas_h,
+                              int dst_x, int dst_y, const bloom_u8 *bmp, int bw, int bh)
+{
+    int x;
+    int y;
+
+    for (y = 0; y < bh; ++y)
+    {
+        for (x = 0; x < bw; ++x)
+        {
+            int ax = dst_x + x;
+            int ay = dst_y + y;
+            bloom_u8 v = bmp[y * bw + x];
+            bloom_f32 a;
+
+            if (ax < 0 || ay < 0 || ax >= atlas_w || ay >= atlas_h)
+            {
+                continue;
+            }
+
+            a = (bloom_f32)v / 255.0f;
+            a = powf(a, 0.85f);
+            v = (bloom_u8)(a * 255.0f + 0.5f);
+            atlas[ay * atlas_w + ax] = v;
+        }
+    }
+}
+
+static bloom_bool bloom_font_build_ttf_from_buffer(bloom_font *font, const bloom_u8 *data, int data_len,
+                                                    bloom_f32 size)
+{
+    bloom_ttf_font ttf;
+    const int oversample = 4;
+    const int columns = BLOOM_FONT_ATLAS_COLUMNS;
+    const int rows = BLOOM_FONT_ATLAS_ROWS;
+    bloom_u32 codepoints[BLOOM_FONT_ATLAS_COLUMNS * BLOOM_FONT_ATLAS_ROWS];
+    int glyph_count;
+    const int raster_size = (int)ceilf(size * (bloom_f32)oversample);
+    const int src_cell_w = bloom_font_align_up_int(raster_size * 2, oversample);
+    const int src_cell_h = bloom_font_align_up_int(raster_size * 2, oversample);
+    const int dst_cell_w = src_cell_w / oversample;
+    const int dst_cell_h = src_cell_h / oversample;
+    const int dst_atlas_w = columns * dst_cell_w;
+    const int dst_atlas_h = rows * dst_cell_h;
+    const int glyph_padding = oversample * 2;
+    int ascent_i;
+    int descent_i;
+    int line_gap_i;
+    bloom_f32 em_scale;
+    int i;
+    bloom_u8 *bmp = NULL;
+    bloom_bool ok = BLOOM_FALSE;
+
+    if (!font || !data || data_len <= 0 || size <= 0.0f)
+    {
+        return BLOOM_FALSE;
+    }
+
+    if (!bloom_ttf_init(&ttf, data, data_len))
+    {
+        return BLOOM_FALSE;
+    }
+
+    glyph_count = bloom_font_fill_default_codepoints(codepoints, columns * rows);
+    if (glyph_count <= 0 || glyph_count > columns * rows)
+    {
+        return BLOOM_FALSE;
+    }
+
+    bloom_ttf_line_metrics(&ttf, &ascent_i, &descent_i, &line_gap_i);
+    {
+        bloom_f32 em_h = (bloom_f32)(ascent_i - descent_i);
+        if (em_h < 1.0f)
+        {
+            em_h = (bloom_f32)ttf.units_per_em;
+        }
+        em_scale = em_h > 0.0f ? (bloom_f32)dst_cell_h / em_h : (bloom_f32)dst_cell_h / (bloom_f32)ttf.units_per_em;
+    }
+
+    font->size = size;
+    font->ascent = (bloom_f32)ascent_i * em_scale;
+    font->descent = (bloom_f32)(-descent_i) * em_scale;
+    font->line_height = (bloom_f32)(ascent_i - descent_i + line_gap_i) * em_scale;
+
+    font->atlas_width = (bloom_u32)dst_atlas_w;
+    font->atlas_height = (bloom_u32)dst_atlas_h;
+    font->atlas_pixels = (bloom_u8 *)calloc((size_t)dst_atlas_w * (size_t)dst_atlas_h, 1);
+    font->glyph_capacity = (bloom_u32)glyph_count;
+    font->glyphs = (bloom_glyph *)malloc(sizeof(bloom_glyph) * (size_t)glyph_count);
+    bmp = (bloom_u8 *)malloc((size_t)dst_cell_w * (size_t)dst_cell_h);
+    if (!font->atlas_pixels || !font->glyphs || !bmp)
+    {
+        goto cleanup;
+    }
+
+    for (i = 0; i < glyph_count; ++i)
+    {
+        bloom_u32 cp = codepoints[i];
+        int advance;
+        int lsb;
+        int gidx;
+        int bw;
+        int bh;
+        int col = i % columns;
+        int row = i / columns;
+        int dst_cell_x = col * dst_cell_w;
+        int dst_cell_y = row * dst_cell_h;
+        int dst_x0;
+        int dst_y0;
+        bloom_glyph *gl = &font->glyphs[i];
+
+        gidx = bloom_ttf_cmap_lookup(&ttf, cp);
+        gl->codepoint = cp;
+
+        if (gidx < 0)
+        {
+            gl->advance = size * 0.33f;
+            gl->x0 = 0.0f;
+            gl->y0 = 0.0f;
+            gl->x1 = 0.0f;
+            gl->y1 = 0.0f;
+            gl->u0 = gl->v0 = gl->u1 = gl->v1 = 0.0f;
+            continue;
+        }
+
+        bloom_ttf_glyph_hmetrics(&ttf, gidx, &advance, &lsb);
+        gl->advance = (bloom_f32)advance * em_scale;
+        if (gl->advance < size * 0.33f)
+        {
+            gl->advance = size * 0.33f;
+        }
+
+        if (!bloom_ttf_render_glyph(&ttf, gidx, (bloom_f32)dst_cell_h, bmp, dst_cell_w, dst_cell_h, dst_cell_w, &bw,
+                                    &bh))
+        {
+            gl->x0 = gl->y0 = gl->x1 = gl->y1 = 0.0f;
+            gl->u0 = gl->v0 = gl->u1 = gl->v1 = 0.0f;
+            continue;
+        }
+
+        if (bw <= 0 || bh <= 0)
+        {
+            gl->x0 = 0.0f;
+            gl->y0 = 0.0f;
+            gl->x1 = 0.0f;
+            gl->y1 = 0.0f;
+            gl->u0 = gl->v0 = gl->u1 = gl->v1 = 0.0f;
+            continue;
+        }
+
+        dst_x0 = dst_cell_x + (glyph_padding / oversample);
+        dst_y0 = dst_cell_y + (dst_cell_h - bh) / 2;
+        if (dst_x0 + bw > dst_cell_x + dst_cell_w)
+        {
+            dst_x0 = dst_cell_x + 1;
+        }
+
+        bloom_font_ttf_blit(font->atlas_pixels, dst_atlas_w, dst_atlas_h, dst_x0, dst_y0, bmp, bw, bh);
+
+        gl->x0 = 0.0f;
+        gl->y0 = 0.0f;
+        gl->x1 = (bloom_f32)bw;
+        gl->y1 = (bloom_f32)bh;
+        gl->u0 = (bloom_f32)dst_x0 / (bloom_f32)dst_atlas_w;
+        gl->v0 = (bloom_f32)dst_y0 / (bloom_f32)dst_atlas_h;
+        gl->u1 = (bloom_f32)(dst_x0 + bw) / (bloom_f32)dst_atlas_w;
+        gl->v1 = (bloom_f32)(dst_y0 + bh) / (bloom_f32)dst_atlas_h;
+    }
+
+    font->glyph_count = (bloom_u32)glyph_count;
+    if (!bloom_font_build_sorted_lookup(font))
+    {
+        goto cleanup;
+    }
+
+    font->valid = BLOOM_TRUE;
+    ok = BLOOM_TRUE;
+
+cleanup:
+    if (!ok)
+    {
+        free(font->glyph_sorted_cp);
+        free(font->glyph_sorted_slot);
+        font->glyph_sorted_cp = NULL;
+        font->glyph_sorted_slot = NULL;
+        free(font->atlas_pixels);
+        free(font->glyphs);
+        font->atlas_pixels = NULL;
+        font->glyphs = NULL;
+        font->atlas_width = 0;
+        font->atlas_height = 0;
+        font->glyph_count = 0;
+        font->glyph_capacity = 0;
+        font->size = 0.0f;
+        font->ascent = 0.0f;
+        font->descent = 0.0f;
+        font->line_height = 0.0f;
+        font->valid = BLOOM_FALSE;
+    }
+
+    free(bmp);
+    return ok;
+}
+
+static bloom_bool bloom_font_try_default_unix_font(bloom_font *font, bloom_f32 size)
+{
+    static const char *const paths[] = {
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        "/Library/Fonts/Arial.ttf",
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        NULL
+    };
+    int pi;
+
+    for (pi = 0; paths[pi] != NULL; ++pi)
+    {
+        FILE *fp = fopen(paths[pi], "rb");
+        long sz;
+        bloom_u8 *buf;
+        bloom_bool built;
+
+        if (!fp)
+        {
+            continue;
+        }
+
+        if (fseek(fp, 0, SEEK_END) != 0)
+        {
+            fclose(fp);
+            continue;
+        }
+
+        sz = ftell(fp);
+        if (sz <= 0 || sz > (48 * 1024 * 1024))
+        {
+            fclose(fp);
+            continue;
+        }
+
+        if (fseek(fp, 0, SEEK_SET) != 0)
+        {
+            fclose(fp);
+            continue;
+        }
+
+        buf = (bloom_u8 *)malloc((size_t)sz);
+        if (!buf)
+        {
+            fclose(fp);
+            continue;
+        }
+
+        if (fread(buf, 1, (size_t)sz, fp) != (size_t)sz)
+        {
+            free(buf);
+            fclose(fp);
+            continue;
+        }
+
+        fclose(fp);
+        built = bloom_font_build_ttf_from_buffer(font, buf, (int)sz, size);
+        free(buf);
+        if (built)
+        {
+            return BLOOM_TRUE;
+        }
+    }
+
+    return BLOOM_FALSE;
+}
+
+#endif /* !_WIN32 */
+
 void bloom_font_init(bloom_font *font)
 {
     memset(font, 0, sizeof(bloom_font));
@@ -452,8 +883,9 @@ bloom_bool bloom_font_build_default(bloom_font *font, bloom_f32 size)
 {
 #ifdef _WIN32
     return bloom_font_build_gdi(font, size);
+#else
+    return bloom_font_try_default_unix_font(font, size);
 #endif
-    return BLOOM_FALSE;
 }
 
 bloom_bool bloom_font_load_from_memory(bloom_font *font, const bloom_u8 *data, bloom_u64 size, bloom_f32 pixel_size)
@@ -489,16 +921,26 @@ bloom_bool bloom_font_load_from_memory(bloom_font *font, const bloom_u8 *data, b
     RemoveFontMemResourceEx(font_resource);
     return built;
 #else
-    (void)font;
-    (void)data;
-    (void)size;
-    (void)pixel_size;
-    return BLOOM_FALSE;
+    if (size > (bloom_u64)INT_MAX)
+    {
+        return BLOOM_FALSE;
+    }
+    return bloom_font_build_ttf_from_buffer(font, data, (int)size, pixel_size);
 #endif
 }
 
 void bloom_font_destroy(bloom_font *font)
 {
+    if (font->glyph_sorted_cp)
+    {
+        free(font->glyph_sorted_cp);
+        font->glyph_sorted_cp = NULL;
+    }
+    if (font->glyph_sorted_slot)
+    {
+        free(font->glyph_sorted_slot);
+        font->glyph_sorted_slot = NULL;
+    }
     if (font->atlas_pixels)
     {
         free(font->atlas_pixels);
@@ -520,9 +962,27 @@ bloom_f32 bloom_font_text_width(bloom_font *font, const char *text)
 {
     bloom_f32 width = 0;
     bloom_f32 line_width = 0;
-    while (*text)
+    const char *p;
+    const char *end;
+
+    if (!text || !font)
     {
-        if (*text == '\n')
+        return 0;
+    }
+
+    end = text + strlen(text);
+    for (p = text; p < end;)
+    {
+        bloom_u32 bl;
+        bloom_u32 cp = bloom_utf8_decode_one(p, (bloom_u32)(end - p), &bl);
+
+        if (bl == 0)
+        {
+            bl = 1;
+        }
+        p += bl;
+
+        if (cp == '\n')
         {
             if (line_width > width)
             {
@@ -530,15 +990,10 @@ bloom_f32 bloom_font_text_width(bloom_font *font, const char *text)
             }
             line_width = 0;
         }
-        else
+        else if (cp >= 32u)
         {
-            bloom_u32 codepoint = (bloom_u32)(bloom_u8)*text;
-            if (codepoint >= 32)
-            {
-                line_width += bloom_font_char_width(font, codepoint);
-            }
+            line_width += bloom_font_char_width(font, cp);
         }
-        text++;
     }
     if (line_width > width)
     {
@@ -549,13 +1004,33 @@ bloom_f32 bloom_font_text_width(bloom_font *font, const char *text)
 
 bloom_f32 bloom_font_char_width(bloom_font *font, bloom_u32 codepoint)
 {
-    if (codepoint >= 32 && codepoint < 128 && font->glyph_count > 0)
+    bloom_i32 slot;
+
+    if (!font)
     {
-        bloom_u32 idx = codepoint - 32;
-        if (idx < font->glyph_count)
-        {
-            return font->glyphs[idx].advance;
-        }
+        return 0.0f;
     }
+
+    if (!font->valid)
+    {
+        if (codepoint >= 32u)
+        {
+            return font->size * 0.55f;
+        }
+        return 0.0f;
+    }
+
+    slot = bloom_font_glyph_slot(font, codepoint);
+    if (slot >= 0 && (bloom_u32)slot < font->glyph_count)
+    {
+        return font->glyphs[(bloom_u32)slot].advance;
+    }
+
+    slot = bloom_font_glyph_slot(font, (bloom_u32)'?');
+    if (slot >= 0 && (bloom_u32)slot < font->glyph_count)
+    {
+        return font->glyphs[(bloom_u32)slot].advance;
+    }
+
     return font->size * 0.55f;
 }

@@ -140,9 +140,15 @@ void bloom_draw_circle_filled(bloom_draw_list *dl, bloom_vec2 center, bloom_f32 
 
 void bloom_draw_text(bloom_draw_list *dl, bloom_vec2 pos, const char *text,
                      bloom_color col, bloom_f32 font_size, bloom_u32 font_texture);
+/*
+ * UTF-8: text_len is bytes. Layout uses bloom_text_shape_visual (simplified RTL run order for
+ * LTR paragraphs). Atlas-backed codepoints draw; others use '?'. Monochrome emoji only if cmap
+ * maps a glyf; color emoji (COLR/CBDT) not supported.
+ */
 void bloom_draw_text_n(bloom_draw_list *dl, bloom_vec2 pos, const char *text, bloom_u32 text_len,
                        bloom_color col, bloom_f32 font_size, bloom_u32 font_texture);
 bloom_f32 bloom_text_width(const char *text, bloom_f32 font_size);
+/* Same UTF-8 byte semantics as bloom_draw_text_n */
 bloom_f32 bloom_text_width_n(const char *text, bloom_u32 text_len, bloom_f32 font_size);
 #endif
 

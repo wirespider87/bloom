@@ -4,7 +4,9 @@
 
 #include "core/graphics/draw/draw.h"
 #include "core/graphics/font/font.h"
+#include "core/graphics/font/bloom_text_shape.h"
 #include "core/runtime/context/context.h"
+#include "core/base/utf8.h"
 #include <string.h>
 #include <math.h>
 
@@ -534,6 +536,12 @@ void bloom_draw_text(bloom_draw_list *dl, bloom_vec2 pos, const char *text,
     bloom_draw_text_n(dl, pos, text, (bloom_u32)strlen(text), col, font_size, font_texture);
 }
 
+/*
+ * UTF-8: text_len is a byte count. Scalars are produced via bloom_text_shape_visual (Arabic joining
+ * subset + simplified RTL runs for LTR paragraphs). Only atlas codepoints draw; missing glyphs use '?'.
+ * Windows: GDI atlas. Other OS: embedded TTF raster (bloom_ttf). Color emoji (CBDT/COLR) and full
+ * Indic/Devanagari shaping are not implemented - monochrome outlines only when cmap supplies a glyf.
+ */
 void bloom_draw_text_n(bloom_draw_list *dl, bloom_vec2 pos, const char *text, bloom_u32 text_len,
                       bloom_color col, bloom_f32 font_size, bloom_u32 font_texture)
 {
@@ -542,7 +550,9 @@ void bloom_draw_text_n(bloom_draw_list *dl, bloom_vec2 pos, const char *text, bl
     bloom_f32 y = floorf(pos.y + 0.5f);
     bloom_f32 scale = 1.0f;
     bloom_u32 old_tex = dl->current_texture;
-    bloom_u32 idx = 0;
+    bloom_u32 vis[BLOOM_MAX_TEXT_LEN];
+    int nvis;
+    int vi;
 
     if (font && font->valid && font->size > 0.0f)
     {
@@ -551,21 +561,27 @@ void bloom_draw_text_n(bloom_draw_list *dl, bloom_vec2 pos, const char *text, bl
 
     dl->current_texture = font_texture;
 
-    while (idx < text_len)
+    if (!text || text_len == 0)
     {
-        bloom_u8 ch_u8 = (bloom_u8)text[idx];
+        dl->current_texture = old_tex;
+        return;
+    }
 
-        if (ch_u8 == '\n')
+    nvis = bloom_text_shape_visual(text, text_len, vis, BLOOM_MAX_TEXT_LEN);
+
+    for (vi = 0; vi < nvis; ++vi)
+    {
+        bloom_u32 cp = vis[vi];
+
+        if (cp == '\n')
         {
             x = floorf(pos.x + 0.5f);
             y += font ? font->line_height * scale : font_size;
-            idx++;
             continue;
         }
 
-        if (ch_u8 < 32)
+        if (cp < 32u)
         {
-            idx++;
             continue;
         }
 
@@ -582,22 +598,41 @@ void bloom_draw_text_n(bloom_draw_list *dl, bloom_vec2 pos, const char *text, bl
             bloom_f32 v0;
             bloom_f32 u1;
             bloom_f32 v1;
+            bloom_i32 slot;
 
-            if (font && font->valid && ch_u8 >= 32 && ch_u8 < 128)
+            if (font && font->valid)
             {
-                bloom_glyph *glyph = &font->glyphs[ch_u8 - 32];
-                char_w = (glyph->x1 - glyph->x0) * scale;
-                char_h = (glyph->y1 - glyph->y0) * scale;
-                gx0 = glyph->x0 * scale;
-                gy0 = glyph->y0 * scale;
-                u0 = glyph->u0;
-                v0 = glyph->v0;
-                u1 = glyph->u1;
-                v1 = glyph->v1;
+                slot = bloom_font_glyph_slot(font, cp);
+                if (slot < 0)
+                {
+                    slot = bloom_font_glyph_slot(font, (bloom_u32)'?');
+                }
+                if (slot >= 0 && (bloom_u32)slot < font->glyph_count)
+                {
+                    bloom_glyph *glyph = &font->glyphs[(bloom_u32)slot];
+                    char_w = (glyph->x1 - glyph->x0) * scale;
+                    char_h = (glyph->y1 - glyph->y0) * scale;
+                    gx0 = glyph->x0 * scale;
+                    gy0 = glyph->y0 * scale;
+                    u0 = glyph->u0;
+                    v0 = glyph->v0;
+                    u1 = glyph->u1;
+                    v1 = glyph->v1;
+                }
+                else
+                {
+                    int ch = (int)((cp >= 32u) ? (int)((cp - 32u) % 128u) : 0);
+                    bloom_f32 atlas_w = 16.0f;
+                    bloom_f32 atlas_h = 8.0f;
+                    u0 = (bloom_f32)(ch % 16) / atlas_w;
+                    v0 = (bloom_f32)(ch / 16) / atlas_h;
+                    u1 = u0 + 1.0f / atlas_w;
+                    v1 = v0 + 1.0f / atlas_h;
+                }
             }
             else
             {
-                int ch = ch_u8 - 32;
+                int ch = (int)((cp >= 32u) ? (int)((cp - 32u) % 128u) : 0);
                 bloom_f32 atlas_w = 16.0f;
                 bloom_f32 atlas_h = 8.0f;
                 u0 = (bloom_f32)(ch % 16) / atlas_w;
@@ -651,14 +686,13 @@ void bloom_draw_text_n(bloom_draw_list *dl, bloom_vec2 pos, const char *text, bl
 
             if (font && font->valid)
             {
-                x += bloom_font_char_width(font, (bloom_u32)ch_u8) * scale;
+                x += bloom_font_char_width(font, cp) * scale;
             }
             else
             {
                 x += char_w;
             }
         }
-        idx++;
     }
 
     dl->current_texture = old_tex;
@@ -672,9 +706,18 @@ bloom_f32 bloom_text_width(const char *text, bloom_f32 font_size)
 bloom_f32 bloom_text_width_n(const char *text, bloom_u32 text_len, bloom_f32 font_size)
 {
     bloom_font *font = bloom_font_get_active();
+
+    if (!text || text_len == 0)
+    {
+        return 0.0f;
+    }
+
     if (font && font->valid)
     {
         bloom_f32 scale = 1.0f;
+        bloom_u32 vis[BLOOM_MAX_TEXT_LEN];
+        int nvis;
+        int i;
         if (font->size > 0.0f)
         {
             scale = font_size / font->size;
@@ -682,46 +725,62 @@ bloom_f32 bloom_text_width_n(const char *text, bloom_u32 text_len, bloom_f32 fon
         {
             bloom_f32 w = 0;
             bloom_f32 line_w = 0;
-            bloom_u32 i;
-            for (i = 0; i < text_len; ++i)
+            nvis = bloom_text_shape_visual(text, text_len, vis, BLOOM_MAX_TEXT_LEN);
+            for (i = 0; i < nvis; ++i)
             {
-                if (text[i] == '\n')
+                bloom_u32 cp = vis[i];
+
+                if (cp == '\n')
                 {
-                    if (line_w > w) w = line_w;
+                    if (line_w > w)
+                    {
+                        w = line_w;
+                    }
                     line_w = 0;
                 }
-                else
+                else if (cp >= 32u)
                 {
-                    bloom_u32 codepoint = (bloom_u32)(bloom_u8)text[i];
-                    if (codepoint >= 32)
-                    {
-                        line_w += bloom_font_char_width(font, codepoint) * scale;
-                    }
+                    line_w += bloom_font_char_width(font, cp) * scale;
                 }
             }
-            if (line_w > w) w = line_w;
+            if (line_w > w)
+            {
+                w = line_w;
+            }
             return w;
         }
     }
 
     {
+        bloom_u32 vis[BLOOM_MAX_TEXT_LEN];
+        int nvis;
+        int i;
         bloom_f32 w = 0;
         bloom_f32 line_w = 0;
         bloom_f32 char_w = font_size * 0.55f;
-        bloom_u32 i;
-        for (i = 0; i < text_len; ++i)
+
+        nvis = bloom_text_shape_visual(text, text_len, vis, BLOOM_MAX_TEXT_LEN);
+        for (i = 0; i < nvis; ++i)
         {
-            if (text[i] == '\n')
+            bloom_u32 cp = vis[i];
+
+            if (cp == '\n')
             {
-                if (line_w > w) w = line_w;
+                if (line_w > w)
+                {
+                    w = line_w;
+                }
                 line_w = 0;
             }
-            else
+            else if (cp >= 32u)
             {
                 line_w += char_w;
             }
         }
-        if (line_w > w) w = line_w;
+        if (line_w > w)
+        {
+            w = line_w;
+        }
         return w;
     }
 }

@@ -82,7 +82,10 @@ static void showcase_init(showcase_state *state)
     state->split_right = 300.0f;
 
     strcpy(state->text_input, "Hello Bloom");
-    strcpy(state->text_area, "This is a multiline text area.\nEdit me and try keyboard shortcuts.");
+    strcpy(state->text_area, "This is a multiline text area.\nEdit me and try keyboard shortcuts.\n\n");
+    strncat(state->text_area,
+            "UTF-8 sample: café, Привет, 中文, שלום עברית",
+            sizeof(state->text_area) - strlen(state->text_area) - 1u);
     strcpy(state->filter_buf, "");
 }
 
@@ -106,6 +109,19 @@ static void showcase_draw(showcase_state *state)
         bloom->text_wrapped("This demo intentionally touches every widget API so library consumers have a one-stop integration sample.");
         bloom->text_colored("Colored text sample", bloom->rgba(255, 180, 80, 255));
         bloom->text_disabled("Disabled style text");
+        bloom->separator();
+
+        bloom->text("UTF-8 samples");
+        bloom->text_wrapped("Latin-1: café, naïve, £100.");
+        bloom->text_wrapped("Cyrillic: Привет, мир.");
+        bloom->text_wrapped("Chinese: 中文界面测试");
+        bloom->text_wrapped("Hebrew: שלום - עברית (Modern Hebrew)");
+        bloom->text_wrapped(
+            "Hebrew alphabet (in atlas): א ב ג ד ה ו ז ח ט י כ ל מ נ ס ע פ צ ק ר ש ת");
+        bloom->text_wrapped(
+            "Final forms: ך ם ן ף ץ - punctuation in atlas: Hebrew letters U+05D0-U+05EA only; niqqud/cantillation are not pre-rastered.");
+        bloom->text_disabled(
+            "Default atlas: ASCII, Latin-1, Cyrillic U+0400-U+04FF, Hebrew U+05D0-U+05EA, six CJK codepoints; anything else shows '?'. ");
         bloom->separator();
 
         bloom->text("Buttons and Choice Widgets");
@@ -311,7 +327,7 @@ static void showcase_draw(showcase_state *state)
         }
         bloom->progress_bar(state->progress, 220.0f, 18.0f);
 
-        if (bloom->hyperlink("https://github.com/bloom-ui/bloom"))
+        if (bloom->hyperlink("https://github.com/wirespider87/bloom"))
         {
             state->show_debug = !state->show_debug;
         }
