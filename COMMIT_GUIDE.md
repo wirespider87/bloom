@@ -4,6 +4,10 @@ This repo does not need a ceremony-heavy workflow.
 
 If you changed one thing, make one commit. If you changed three unrelated things, make three commits.
 
+## Naming
+
+Standard casing in this codebase is **snake_case** (for example: functions, variables, and file names).
+
 ## Before You Commit
 
 Do these if they apply:
