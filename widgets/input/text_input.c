@@ -3,6 +3,7 @@
 #endif
 
 #include "widgets/internal.h"
+#include "core/base/utf8.h"
 
 #define BLOOM_TEXT_EDIT_STATE_CAPACITY 64
 #define BLOOM_TEXT_UNDO_DEPTH 16
@@ -186,13 +187,13 @@ static bloom_i32 bloom_text_clamp_index(const char *text, bloom_i32 index)
     bloom_i32 len = bloom_text_length(text);
     if (index < 0)
     {
-        return 0;
+        index = 0;
     }
     if (index > len)
     {
-        return len;
+        index = len;
     }
-    return index;
+    return bloom_utf8_snap_to_boundary(text, len, index);
 }
 
 static bloom_i32 bloom_text_min_i32(bloom_i32 a, bloom_i32 b)
@@ -320,7 +321,20 @@ static void bloom_text_move_horizontal(bloom_text_edit_state *state, const char 
     }
     else
     {
-        target = state->caret + delta;
+        bloom_i32 len = bloom_text_length(text);
+
+        if (delta == -1)
+        {
+            target = bloom_utf8_prior_char(text, state->caret);
+        }
+        else if (delta == 1)
+        {
+            target = bloom_utf8_next_char(text, len, state->caret);
+        }
+        else
+        {
+            target = state->caret + delta;
+        }
         bloom_text_set_caret(state, text, target, keep_selection);
     }
 
@@ -425,6 +439,7 @@ static bloom_bool bloom_text_insert_filtered(char *buf, bloom_u32 buf_size, bloo
     bloom_i32 len;
     bloom_i32 caret;
     bloom_bool changed = BLOOM_FALSE;
+    const char *p;
 
     if (!buf || !caret_io || !text || buf_size == 0)
     {
@@ -434,31 +449,47 @@ static bloom_bool bloom_text_insert_filtered(char *buf, bloom_u32 buf_size, bloo
     len = bloom_text_length(buf);
     caret = bloom_text_clamp_index(buf, *caret_io);
 
-    while (*text)
     {
-        unsigned char ch = (unsigned char)*text++;
+        const char *end = text + strlen(text);
 
-        if (ch == '\r')
+        for (p = text; p < end;)
         {
-            continue;
-        }
-        if (ch == '\n' && !multiline)
-        {
-            continue;
-        }
-        if (ch < 32 && ch != '\n')
-        {
-            continue;
-        }
-        if ((bloom_u32)len >= buf_size - 1)
-        {
-            break;
-        }
+            bloom_u32 bl;
+            bloom_u32 rem = (bloom_u32)(end - p);
+            bloom_u32 cp = bloom_utf8_decode_one(p, rem, &bl);
 
-        memmove(buf + caret + 1, buf + caret, (size_t)(len - caret + 1));
-        buf[caret++] = (char)ch;
-        len++;
-        changed = BLOOM_TRUE;
+            if (bl == 0u)
+            {
+                bl = 1u;
+            }
+
+            if (cp == (bloom_u32)'\r')
+            {
+                p += bl;
+                continue;
+            }
+            if (cp == (bloom_u32)'\n' && !multiline)
+            {
+                p += bl;
+                continue;
+            }
+            if (cp < 32u && cp != (bloom_u32)'\n')
+            {
+                p += bl;
+                continue;
+            }
+            if ((bloom_u32)len + bl > buf_size - 1u)
+            {
+                break;
+            }
+
+            memmove(buf + caret + (bloom_i32)bl, buf + caret, (size_t)(len - caret + 1));
+            memcpy(buf + caret, p, (size_t)bl);
+            caret += (bloom_i32)bl;
+            len += (bloom_i32)bl;
+            p += bl;
+            changed = BLOOM_TRUE;
+        }
     }
 
     *caret_io = caret;
@@ -599,7 +630,9 @@ static void bloom_draw_text_selection(bloom_context *ctx, bloom_rect rect, const
             bloom_i32 line_end = bloom_text_line_end(text, line_start);
             bloom_i32 seg_start = bloom_text_max_i32(sel_start, line_start);
             bloom_i32 seg_end = bloom_text_min_i32(sel_end, line_end);
-            bloom_bool spans_newline = (sel_end > line_end && line_end < bloom_text_length(text));
+
+            bloom_bool spans_newline =
+                (sel_end > line_end && line_end < bloom_text_length(text) && sel_start <= line_end);
 
             if (seg_end > seg_start || spans_newline)
             {
@@ -855,7 +888,7 @@ static bloom_bool bloom_text_edit_process_input(bloom_context *ctx, bloom_text_e
         }
         else if (state->caret > 0)
         {
-            bloom_i32 pos = state->caret - 1;
+            bloom_i32 pos = bloom_utf8_prior_char(buf, state->caret);
             bloom_text_delete_range(buf, pos, state->caret);
             bloom_text_set_caret(state, buf, pos, BLOOM_FALSE);
             changed = BLOOM_TRUE;
@@ -875,7 +908,8 @@ static bloom_bool bloom_text_edit_process_input(bloom_context *ctx, bloom_text_e
         }
         else if (state->caret < bloom_text_length(buf))
         {
-            bloom_text_delete_range(buf, state->caret, state->caret + 1);
+            bloom_i32 next = bloom_utf8_next_char(buf, bloom_text_length(buf), state->caret);
+            bloom_text_delete_range(buf, state->caret, next);
             changed = BLOOM_TRUE;
         }
         state->preferred_column = bloom_text_current_column(buf, state->caret);

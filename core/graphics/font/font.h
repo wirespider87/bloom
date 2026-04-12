@@ -30,6 +30,9 @@ typedef struct bloom_font
     bloom_u32    atlas_height;
     bloom_u32    texture_id;
 
+    bloom_u32   *glyph_sorted_cp;
+    bloom_u16   *glyph_sorted_slot;
+
     bloom_bool   valid;
 } bloom_font;
 
@@ -43,6 +46,7 @@ bloom_font *bloom_font_get_active(void);
 
 bloom_f32 bloom_font_text_width(bloom_font *font, const char *text);
 bloom_f32 bloom_font_char_width(bloom_font *font, bloom_u32 codepoint);
+bloom_i32 bloom_font_glyph_slot(bloom_font *font, bloom_u32 codepoint);
 #endif
 
 #ifdef __cplusplus

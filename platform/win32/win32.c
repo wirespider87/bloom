@@ -749,14 +749,60 @@ static LRESULT CALLBACK bloom_wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
         break;
 
     case WM_CHAR:
-        if (input && wp >= 32 && wp < 127)
+        if (input)
         {
-            bloom_input_add_char(input, (char)wp);
+            static WCHAR s_utf16_hi_surrogate = 0;
+            WCHAR wch = (WCHAR)wp;
+
+            if (wch < 32u && wch != '\t' && wch != '\r' && wch != '\n')
+            {
+                break;
+            }
+
+            if (wch >= 0xD800u && wch <= 0xDBFFu)
+            {
+                s_utf16_hi_surrogate = wch;
+                break;
+            }
+
+            if (wch >= 0xDC00u && wch <= 0xDFFFu && s_utf16_hi_surrogate)
+            {
+                WCHAR pair[2] = {s_utf16_hi_surrogate, wch};
+                char utf8[8];
+                int n = WideCharToMultiByte(CP_UTF8, 0, pair, 2, utf8, (int)sizeof(utf8), NULL, NULL);
+                int i;
+
+                s_utf16_hi_surrogate = 0;
+                if (n > 0)
+                {
+                    for (i = 0; i < n; ++i)
+                    {
+                        bloom_input_add_char(input, utf8[i]);
+                    }
+                }
+                break;
+            }
+
+            s_utf16_hi_surrogate = 0;
+
+            {
+                char utf8[8];
+                int n = WideCharToMultiByte(CP_UTF8, 0, &wch, 1, utf8, (int)sizeof(utf8), NULL, NULL);
+                int i;
+
+                if (n > 0)
+                {
+                    for (i = 0; i < n; ++i)
+                    {
+                        bloom_input_add_char(input, utf8[i]);
+                    }
+                }
+            }
         }
         break;
     }
 
-    return DefWindowProcA(hwnd, msg, wp, lp);
+    return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
 bloom_platform_window *bloom_platform_create(bloom_platform_config *config)
@@ -776,30 +822,56 @@ bloom_platform_window *bloom_platform_create(bloom_platform_config *config)
 
     bloom_platform_try_enable_dpi_awareness();
 
-    WNDCLASSEXA wc;
-    memset(&wc, 0, sizeof(wc));
-    wc.cbSize = sizeof(wc);
-    wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
-    wc.lpfnWndProc = bloom_wnd_proc;
-    wc.hInstance = GetModuleHandleA(NULL);
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.lpszClassName = "BloomWindowClass";
-    RegisterClassExA(&wc);
+    /*
+     * Unicode window class + CreateWindowExW so WM_CHAR carries UTF-16 codepoints. With the ANSI
+     * API, wParam is an 8-bit value from the ANSI code page (e.g. CP1251 bytes for Russian), which
+     * we were mis-reading as U+00EF-style characters instead of Cyrillic.
+     */
+    {
+        WNDCLASSEXW wc;
+        WCHAR title_wide[512];
+        const char *title8 = config->title ? config->title : "Bloom";
+        int tw;
 
-    style = bloom_platform_window_style(flags);
-    exstyle = bloom_platform_window_exstyle(flags, opacity);
+        memset(&wc, 0, sizeof(wc));
+        wc.cbSize = sizeof(wc);
+        wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
+        wc.lpfnWndProc = bloom_wnd_proc;
+        wc.hInstance = GetModuleHandleW(NULL);
+        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+        wc.lpszClassName = L"BloomWindowClass";
+        RegisterClassExW(&wc);
 
-    RECT rect = {0, 0, config->width, config->height};
-    AdjustWindowRectEx(&rect, style, FALSE, exstyle);
+        tw = MultiByteToWideChar(CP_UTF8, 0, title8, -1, title_wide, (int)(sizeof(title_wide) / sizeof(title_wide[0])));
+        if (tw <= 0)
+        {
+            tw = MultiByteToWideChar(CP_ACP, 0, title8, -1, title_wide, (int)(sizeof(title_wide) / sizeof(title_wide[0])));
+        }
+        if (tw <= 0)
+        {
+            title_wide[0] = L'B';
+            title_wide[1] = L'r';
+            title_wide[2] = L'o';
+            title_wide[3] = L'o';
+            title_wide[4] = L'm';
+            title_wide[5] = 0;
+        }
 
-    win->hwnd = CreateWindowExA(
-        exstyle,
-        "BloomWindowClass",
-        config->title ? config->title : "Bloom",
-        style,
-        CW_USEDEFAULT, CW_USEDEFAULT,
-        rect.right - rect.left, rect.bottom - rect.top,
-        NULL, NULL, GetModuleHandleA(NULL), NULL);
+        style = bloom_platform_window_style(flags);
+        exstyle = bloom_platform_window_exstyle(flags, opacity);
+
+        RECT rect = {0, 0, config->width, config->height};
+        AdjustWindowRectEx(&rect, style, FALSE, exstyle);
+
+        win->hwnd = CreateWindowExW(
+            exstyle,
+            L"BloomWindowClass",
+            title_wide,
+            style,
+            CW_USEDEFAULT, CW_USEDEFAULT,
+            rect.right - rect.left, rect.bottom - rect.top,
+            NULL, NULL, GetModuleHandleW(NULL), NULL);
+    }
 
     if (!win->hwnd)
     {
@@ -902,10 +974,10 @@ bloom_bool bloom_platform_poll(bloom_platform_window *win)
     }
 
     MSG msg;
-    while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE))
+    while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
     {
         TranslateMessage(&msg);
-        DispatchMessageA(&msg);
+        DispatchMessageW(&msg);
     }
     return !win->should_close;
 }
@@ -965,8 +1037,9 @@ bloom_f64 bloom_platform_get_time(void)
 bloom_bool bloom_platform_get_clipboard_text(char *buffer, bloom_u32 buffer_size)
 {
     HANDLE data;
-    char *src;
-    bloom_u32 i;
+    WCHAR *wsrc;
+    int out;
+    int wchars;
 
     if (!buffer || buffer_size == 0)
     {
@@ -979,6 +1052,27 @@ bloom_bool bloom_platform_get_clipboard_text(char *buffer, bloom_u32 buffer_size
         return BLOOM_FALSE;
     }
 
+    data = GetClipboardData(CF_UNICODETEXT);
+    if (data)
+    {
+        wsrc = (WCHAR *)GlobalLock(data);
+        if (!wsrc)
+        {
+            CloseClipboard();
+            return BLOOM_FALSE;
+        }
+        wchars = (int)wcslen(wsrc);
+        out = WideCharToMultiByte(CP_UTF8, 0, wsrc, wchars, buffer, (int)buffer_size - 1, NULL, NULL);
+        GlobalUnlock(data);
+        CloseClipboard();
+        if (out < 0)
+        {
+            out = 0;
+        }
+        buffer[out] = '\0';
+        return BLOOM_TRUE;
+    }
+
     data = GetClipboardData(CF_TEXT);
     if (!data)
     {
@@ -986,43 +1080,49 @@ bloom_bool bloom_platform_get_clipboard_text(char *buffer, bloom_u32 buffer_size
         return BLOOM_FALSE;
     }
 
-    src = (char *)GlobalLock(data);
-    if (!src)
     {
+        char *src = (char *)GlobalLock(data);
+        int nw;
+        WCHAR *wide = NULL;
+
+        if (!src)
+        {
+            CloseClipboard();
+            return BLOOM_FALSE;
+        }
+        nw = MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, src, -1, NULL, 0);
+        if (nw <= 0)
+        {
+            GlobalUnlock(data);
+            CloseClipboard();
+            return BLOOM_FALSE;
+        }
+        wide = (WCHAR *)malloc((size_t)nw * sizeof(WCHAR));
+        if (!wide)
+        {
+            GlobalUnlock(data);
+            CloseClipboard();
+            return BLOOM_FALSE;
+        }
+        MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, src, -1, wide, nw);
+        GlobalUnlock(data);
         CloseClipboard();
-        return BLOOM_FALSE;
+        out = WideCharToMultiByte(CP_UTF8, 0, wide, -1, buffer, (int)buffer_size - 1, NULL, NULL);
+        free(wide);
+        if (out < 0)
+        {
+            out = 0;
+        }
+        buffer[out] = '\0';
+        return BLOOM_TRUE;
     }
-
-    i = 0;
-    while (src[i] && i + 1 < buffer_size)
-    {
-        char c = src[i];
-        if (c >= 32 && c < 127)
-        {
-            buffer[i] = c;
-            i++;
-        }
-        else if (c == '\t')
-        {
-            buffer[i++] = ' ';
-        }
-        else
-        {
-            break;
-        }
-    }
-    buffer[i] = '\0';
-
-    GlobalUnlock(data);
-    CloseClipboard();
-    return BLOOM_TRUE;
 }
 
 bloom_bool bloom_platform_set_clipboard_text(const char *text)
 {
     HGLOBAL mem;
-    char *dst;
-    size_t len;
+    WCHAR *wdst;
+    int nw;
 
     if (!text)
     {
@@ -1035,25 +1135,32 @@ bloom_bool bloom_platform_set_clipboard_text(const char *text)
     }
 
     EmptyClipboard();
-    len = strlen(text);
-    mem = GlobalAlloc(GMEM_MOVEABLE, len + 1);
+
+    nw = MultiByteToWideChar(CP_UTF8, 0, text, -1, NULL, 0);
+    if (nw <= 0)
+    {
+        CloseClipboard();
+        return BLOOM_FALSE;
+    }
+
+    mem = GlobalAlloc(GMEM_MOVEABLE, (SIZE_T)nw * sizeof(WCHAR));
     if (!mem)
     {
         CloseClipboard();
         return BLOOM_FALSE;
     }
 
-    dst = (char *)GlobalLock(mem);
-    if (!dst)
+    wdst = (WCHAR *)GlobalLock(mem);
+    if (!wdst)
     {
         GlobalFree(mem);
         CloseClipboard();
         return BLOOM_FALSE;
     }
 
-    memcpy(dst, text, len + 1);
+    MultiByteToWideChar(CP_UTF8, 0, text, -1, wdst, nw);
     GlobalUnlock(mem);
-    SetClipboardData(CF_TEXT, mem);
+    SetClipboardData(CF_UNICODETEXT, mem);
     CloseClipboard();
     return BLOOM_TRUE;
 }

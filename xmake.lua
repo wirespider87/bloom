@@ -1,5 +1,9 @@
 set_project("bloom")
-set_version("1.0.4")
+set_version("1.0.5")
+
+if is_plat("windows") then
+    add_cxflags("/utf-8")
+end
 
 add_rules("mode.debug", "mode.release")
 
