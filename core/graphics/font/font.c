@@ -20,6 +20,7 @@
 #define CLEARTYPE_NATURAL_QUALITY ANTIALIASED_QUALITY
 #endif
 #endif
+
 static bloom_font *g_bloom_active_font = NULL;
 
 typedef struct bloom_font_cp_sort
@@ -248,37 +249,103 @@ static int bloom_font_align_down_int(int value, int alignment)
     return value - remainder;
 }
 
-#define BLOOM_FONT_ATLAS_COLUMNS 32
-#define BLOOM_FONT_ATLAS_ROWS    16
+#define BLOOM_FONT_ATLAS_COLUMNS 64
+#define BLOOM_FONT_ATLAS_ROWS    64
 
 static int bloom_font_fill_default_codepoints(bloom_u32 *out, int max_out)
 {
-    static const bloom_u32 cjk_demo[] = {
-        0x4E2D, 0x6587, 0x754C, 0x9762, 0x6D4B, 0x8BD5
-    };
     int n = 0;
     int i;
 
-    for (i = 32; i <= 127 && n < max_out; ++i)
+    /* 1. ASCII printable: U+0020-U+007E */
+    for (i = 0x0020; i <= 0x007E && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 2. Latin-1 Supplement: U+00A0-U+00FF */
+    for (i = 0x00A0; i <= 0x00FF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 3. Latin Extended-A: U+0100-U+017F */
+    for (i = 0x0100; i <= 0x017F && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 4. Latin Extended-B: U+0180-U+024F */
+    for (i = 0x0180; i <= 0x024F && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 5. IPA Extensions: U+0250-U+02AF */
+    for (i = 0x0250; i <= 0x02AF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 6. Greek and Coptic: U+0370-U+03FF */
+    for (i = 0x0370; i <= 0x03FF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 7. Cyrillic: U+0400-U+04FF */
+    for (i = 0x0400; i <= 0x04FF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 8. Cyrillic Supplement: U+0500-U+052F */
+    for (i = 0x0500; i <= 0x052F && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 9. Devanagari: U+0900-U+097F */
+    for (i = 0x0900; i <= 0x097F && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 10. Thai: U+0E00-U+0E7F */
+    for (i = 0x0E00; i <= 0x0E7F && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 11. Hebrew letters: U+05D0-U+05EA */
+    for (i = 0x05D0; i <= 0x05EA && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 12. Arabic: U+0600-U+06FF */
+    for (i = 0x0600; i <= 0x06FF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 13. General Punctuation: U+2000-U+206F */
+    for (i = 0x2000; i <= 0x206F && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 14. Superscripts and Subscripts: U+2070-U+209F */
+    for (i = 0x2070; i <= 0x209F && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 15. Currency Symbols: U+20A0-U+20CF */
+    for (i = 0x20A0; i <= 0x20CF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 16. Letterlike Symbols: U+2100-U+214F */
+    for (i = 0x2100; i <= 0x214F && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 17. Number Forms: U+2150-U+218F */
+    for (i = 0x2150; i <= 0x218F && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 18. Arrows: U+2190-U+21FF */
+    for (i = 0x2190; i <= 0x21FF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 19. Mathematical Operators: U+2200-U+22FF */
+    for (i = 0x2200; i <= 0x22FF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 20. Miscellaneous Technical: U+2300-U+23FF */
+    for (i = 0x2300; i <= 0x23FF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 21. Box Drawing: U+2500-U+257F */
+    for (i = 0x2500; i <= 0x257F && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 22. Block Elements: U+2580-U+259F */
+    for (i = 0x2580; i <= 0x259F && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 23. Geometric Shapes: U+25A0-U+25FF */
+    for (i = 0x25A0; i <= 0x25FF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 24. Miscellaneous Symbols: U+2600-U+26FF */
+    for (i = 0x2600; i <= 0x26FF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 25. Dingbats: U+2700-U+27BF */
+    for (i = 0x2700; i <= 0x27BF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 26. CJK common subset: U+4E00-U+4EFF */
+    for (i = 0x4E00; i <= 0x4EFF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 27. CJK continuation: U+4F00-U+4FFF */
+    for (i = 0x4F00; i <= 0x4FFF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 28. More CJK: U+5000-U+51FF */
+    for (i = 0x5000; i <= 0x51FF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 29. More CJK: U+6000-U+62FF */
+    for (i = 0x6000; i <= 0x62FF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 30. More CJK: U+7000-U+72FF */
+    for (i = 0x7000; i <= 0x72FF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 31. More CJK: U+8000-U+82FF */
+    for (i = 0x8000; i <= 0x82FF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+    /* 32. More CJK: U+9000-U+9FFF */
+    for (i = 0x9000; i <= 0x9FFF && n < max_out; ++i) out[n++] = (bloom_u32)i;
+
+    return n;
+}
+
+static int bloom_font_fill_codepoints_from_ranges(bloom_u32 *out, int max_out, const bloom_u32 *ranges, int range_count)
+{
+    int n = 0;
+    int i;
+    int r;
+
+    if (!ranges || range_count <= 0)
     {
-        out[n++] = (bloom_u32)i;
+        return 0;
     }
-    for (i = 0xA0; i <= 0xFF && n < max_out; ++i)
+
+    for (r = 0; r < range_count && n < max_out; ++r)
     {
-        out[n++] = (bloom_u32)i;
+        bloom_u32 start = ranges[r * 2];
+        bloom_u32 count = ranges[r * 2 + 1];
+        for (i = 0; (bloom_u32)i < count && n < max_out; ++i)
+        {
+            out[n++] = start + (bloom_u32)i;
+        }
     }
-    for (i = 0; i < 256 && n < max_out; ++i)
-    {
-        out[n++] = (bloom_u32)(0x0400 + i);
-    }
-    for (i = 0; i < (int)(sizeof(cjk_demo) / sizeof(cjk_demo[0])) && n < max_out; ++i)
-    {
-        out[n++] = cjk_demo[i];
-    }
-    for (i = 0x05D0; i <= 0x05EA && n < max_out; ++i)
-    {
-        out[n++] = (bloom_u32)i;
-    }
+
     return n;
 }
 
@@ -336,7 +403,8 @@ static bloom_u8 bloom_font_downsample_coverage(const bloom_u32 *src_pixels,
     return (bloom_u8)(coverage * 255.0f + 0.5f);
 }
 
-static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, const char *face_name)
+static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, const char *face_name,
+                                          const bloom_u32 *custom_ranges, bloom_i32 range_count)
 {
     const int oversample = 4;
     const int columns = BLOOM_FONT_ATLAS_COLUMNS;
@@ -348,8 +416,6 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
     const int src_cell_h = bloom_font_align_up_int(raster_size * 2, oversample);
     const int dst_cell_w = src_cell_w / oversample;
     const int dst_cell_h = src_cell_h / oversample;
-    const int src_atlas_w = columns * src_cell_w;
-    const int src_atlas_h = rows * src_cell_h;
     const int dst_atlas_w = columns * dst_cell_w;
     const int dst_atlas_h = rows * dst_cell_h;
     const int glyph_padding = oversample * 2;
@@ -385,8 +451,8 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
 
     memset(&bmi, 0, sizeof(bmi));
     bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bmi.bmiHeader.biWidth = src_atlas_w;
-    bmi.bmiHeader.biHeight = -src_atlas_h;
+    bmi.bmiHeader.biWidth = src_cell_w;
+    bmi.bmiHeader.biHeight = -src_cell_h;
     bmi.bmiHeader.biPlanes = 1;
     bmi.bmiHeader.biBitCount = 32;
     bmi.bmiHeader.biCompression = BI_RGB;
@@ -398,7 +464,6 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
     }
 
     SelectObject(mem_dc, bmp);
-    memset(dib_bits, 0, (size_t)src_atlas_w * (size_t)src_atlas_h * 4u);
     SetBkMode(mem_dc, TRANSPARENT);
     SetBkColor(mem_dc, RGB(0, 0, 0));
     SetTextColor(mem_dc, RGB(255, 255, 255));
@@ -431,7 +496,15 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
         goto cleanup;
     }
 
-    glyph_count = bloom_font_fill_default_codepoints(codepoints, columns * rows);
+    if (custom_ranges && range_count > 0)
+    {
+        glyph_count = bloom_font_fill_codepoints_from_ranges(codepoints, columns * rows, custom_ranges, range_count);
+    }
+    else
+    {
+        glyph_count = bloom_font_fill_default_codepoints(codepoints, columns * rows);
+    }
+
     if (glyph_count <= 0 || glyph_count > columns * rows)
     {
         goto cleanup;
@@ -448,6 +521,8 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
     }
     memset(font->atlas_pixels, 0, (size_t)dst_atlas_w * (size_t)dst_atlas_h);
 
+    src_pixels = (const bloom_u32 *)dib_bits;
+
     for (i = 0; i < glyph_count; ++i)
     {
         bloom_u32 cp = codepoints[i];
@@ -455,8 +530,6 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
         SIZE extent;
         int col = i % columns;
         int row = i / columns;
-        int src_cell_x = col * src_cell_w;
-        int src_cell_y = row * src_cell_h;
         int dst_cell_x = col * dst_cell_w;
         int dst_cell_y = row * dst_cell_h;
         int draw_x;
@@ -468,7 +541,8 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
         int dst_y1;
         bloom_glyph *g;
 
-        PatBlt(mem_dc, src_cell_x, src_cell_y, src_cell_w, src_cell_h, BLACKNESS);
+        /* Pre render clear */ 
+        PatBlt(mem_dc, 0, 0, src_cell_w, src_cell_h, BLACKNESS);
         GetTextExtentPoint32W(mem_dc, &wch, 1, &extent);
 
         draw_y_offset = bloom_font_align_down_int((src_cell_h - tm.tmHeight) / 2, oversample);
@@ -477,12 +551,13 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
             draw_y_offset = 0;
         }
 
-        draw_x = src_cell_x + glyph_padding;
-        draw_y = src_cell_y + draw_y_offset;
+        draw_x = glyph_padding;
+        draw_y = draw_y_offset;
         TextOutW(mem_dc, draw_x, draw_y, &wch, 1);
+        GdiFlush();
 
-        dst_x0 = dst_cell_x + ((draw_x - src_cell_x) / oversample);
-        dst_y0 = dst_cell_y + ((draw_y - src_cell_y) / oversample);
+        dst_x0 = dst_cell_x + (draw_x / oversample);
+        dst_y0 = dst_cell_y + (draw_y / oversample);
         dst_x1 = dst_x0 + (bloom_font_align_up_int(extent.cx, oversample) / oversample);
         dst_y1 = dst_y0 + (bloom_font_align_up_int(tm.tmHeight, oversample) / oversample);
 
@@ -501,20 +576,20 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
         g->v0 = (bloom_f32)dst_y0 / (bloom_f32)dst_atlas_h;
         g->u1 = (bloom_f32)dst_x1 / (bloom_f32)dst_atlas_w;
         g->v1 = (bloom_f32)dst_y1 / (bloom_f32)dst_atlas_h;
-    }
 
-    src_pixels = (const bloom_u32 *)dib_bits;
-    for (y = 0; y < dst_atlas_h; ++y)
-    {
-        for (x = 0; x < dst_atlas_w; ++x)
+       /* downsample */
+        for (y = 0; y < dst_cell_h; ++y)
         {
-            font->atlas_pixels[y * dst_atlas_w + x] = bloom_font_downsample_coverage(
-                src_pixels,
-                src_atlas_w,
-                src_atlas_h,
-                x * oversample,
-                y * oversample,
-                oversample);
+            for (x = 0; x < dst_cell_w; ++x)
+            {
+                int atlas_x = dst_cell_x + x;
+                int atlas_y = dst_cell_y + y;
+                font->atlas_pixels[atlas_y * dst_atlas_w + atlas_x] =
+                    bloom_font_downsample_coverage(src_pixels,
+                                                   src_cell_w, src_cell_h,
+                                                   x * oversample, y * oversample,
+                                                   oversample);
+            }
         }
     }
 
@@ -583,7 +658,7 @@ static bloom_bool bloom_font_build_gdi(bloom_font *font, bloom_f32 size)
 
     for (i = 0; i < (bloom_u32)(sizeof(candidates) / sizeof(candidates[0])); ++i)
     {
-        if (bloom_font_build_gdi_ex(font, size, candidates[i]))
+        if (bloom_font_build_gdi_ex(font, size, candidates[i], NULL, 0))
         {
             return BLOOM_TRUE;
         }
@@ -627,7 +702,7 @@ static void bloom_font_ttf_blit(bloom_u8 *atlas, int atlas_w, int atlas_h,
 }
 
 static bloom_bool bloom_font_build_ttf_from_buffer(bloom_font *font, const bloom_u8 *data, int data_len,
-                                                    bloom_f32 size)
+                                                    bloom_f32 size, const bloom_u32 *custom_ranges, bloom_i32 range_count)
 {
     bloom_ttf_font ttf;
     const int oversample = 4;
@@ -661,7 +736,15 @@ static bloom_bool bloom_font_build_ttf_from_buffer(bloom_font *font, const bloom
         return BLOOM_FALSE;
     }
 
-    glyph_count = bloom_font_fill_default_codepoints(codepoints, columns * rows);
+    if (custom_ranges && range_count > 0)
+    {
+        glyph_count = bloom_font_fill_codepoints_from_ranges(codepoints, columns * rows, custom_ranges, range_count);
+    }
+    else
+    {
+        glyph_count = bloom_font_fill_default_codepoints(codepoints, columns * rows);
+    }
+
     if (glyph_count <= 0 || glyph_count > columns * rows)
     {
         return BLOOM_FALSE;
@@ -861,7 +944,7 @@ static bloom_bool bloom_font_try_default_unix_font(bloom_font *font, bloom_f32 s
         }
 
         fclose(fp);
-        built = bloom_font_build_ttf_from_buffer(font, buf, (int)sz, size);
+        built = bloom_font_build_ttf_from_buffer(font, buf, (int)sz, size, NULL, 0);
         free(buf);
         if (built)
         {
@@ -890,6 +973,11 @@ bloom_bool bloom_font_build_default(bloom_font *font, bloom_f32 size)
 
 bloom_bool bloom_font_load_from_memory(bloom_font *font, const bloom_u8 *data, bloom_u64 size, bloom_f32 pixel_size)
 {
+    return bloom_font_load_from_memory_ex(font, data, size, pixel_size, NULL, 0);
+}
+
+bloom_bool bloom_font_load_from_memory_ex(bloom_font *font, const bloom_u8 *data, bloom_u64 size, bloom_f32 pixel_size, const bloom_u32 *ranges, bloom_i32 range_count)
+{
     if (!font || !data || size == 0 || pixel_size <= 0.0f)
     {
         return BLOOM_FALSE;
@@ -915,7 +1003,7 @@ bloom_bool bloom_font_load_from_memory(bloom_font *font, const bloom_u8 *data, b
 
     if (bloom_font_extract_ttf_name(data, size, face_name, (int)sizeof(face_name)) && face_name[0] != '\0')
     {
-        built = bloom_font_build_gdi_ex(font, pixel_size, face_name);
+        built = bloom_font_build_gdi_ex(font, pixel_size, face_name, ranges, range_count);
     }
 
     RemoveFontMemResourceEx(font_resource);
@@ -925,7 +1013,76 @@ bloom_bool bloom_font_load_from_memory(bloom_font *font, const bloom_u8 *data, b
     {
         return BLOOM_FALSE;
     }
-    return bloom_font_build_ttf_from_buffer(font, data, (int)size, pixel_size);
+    return bloom_font_build_ttf_from_buffer(font, data, (int)size, pixel_size, ranges, range_count);
+#endif
+}
+
+bloom_bool bloom_font_load_from_file(bloom_font *font, const char *path, bloom_f32 pixel_size)
+{
+    return bloom_font_load_from_file_ex(font, path, pixel_size, NULL, 0);
+}
+
+bloom_bool bloom_font_load_from_file_ex(bloom_font *font, const char *path, bloom_f32 pixel_size, const bloom_u32 *ranges, bloom_i32 range_count)
+{
+    FILE *fp;
+    long sz;
+    bloom_u8 *buf;
+    bloom_bool result;
+
+    if (!font || !path || pixel_size <= 0.0f)
+    {
+        return BLOOM_FALSE;
+    }
+
+    fp = fopen(path, "rb");
+    if (!fp)
+    {
+        return BLOOM_FALSE;
+    }
+
+    fseek(fp, 0, SEEK_END);
+    sz = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    if (sz <= 0)
+    {
+        fclose(fp);
+        return BLOOM_FALSE;
+    }
+
+    buf = (bloom_u8 *)malloc((size_t)sz);
+    if (!buf)
+    {
+        fclose(fp);
+        return BLOOM_FALSE;
+    }
+
+    if (fread(buf, 1, (size_t)sz, fp) != (size_t)sz)
+    {
+        free(buf);
+        fclose(fp);
+        return BLOOM_FALSE;
+    }
+
+    fclose(fp);
+    result = bloom_font_load_from_memory_ex(font, buf, (bloom_u64)sz, pixel_size, ranges, range_count);
+    free(buf);
+
+    return result;
+}
+
+bloom_bool bloom_font_load_from_system(bloom_font *font, const char *name, bloom_f32 pixel_size)
+{
+    if (!font || !name || pixel_size <= 0.0f)
+    {
+        return BLOOM_FALSE;
+    }
+
+#ifdef _WIN32
+    return bloom_font_build_gdi_ex(font, pixel_size, name, NULL, 0);
+#else
+    /* TODO: handle non windows */
+    return BLOOM_FALSE;
 #endif
 }
 

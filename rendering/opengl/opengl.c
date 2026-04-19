@@ -137,7 +137,7 @@ static const char g_bloom_gl_vs[] =
     "layout(location = 2) in vec2 a_half_size;\n"
     "layout(location = 3) in vec2 a_uv;\n"
     "layout(location = 4) in vec4 a_col;\n"
-    "layout(location = 5) in float a_corner_radius;\n"
+    "layout(location = 5) in vec4 a_corner_radii;\n"
     "layout(location = 6) in float a_border_thickness;\n"
     "layout(location = 7) in uint a_elem_type;\n"
     "uniform mat4 u_proj;\n"
@@ -146,7 +146,7 @@ static const char g_bloom_gl_vs[] =
     "out vec2 v_half_size;\n"
     "out vec2 v_uv;\n"
     "out vec4 v_col;\n"
-    "out float v_corner_radius;\n"
+    "out vec4 v_corner_radii;\n"
     "out float v_border_thickness;\n"
     "flat out uint v_elem_type;\n"
     "void main()\n"
@@ -157,7 +157,7 @@ static const char g_bloom_gl_vs[] =
     "    v_half_size = a_half_size;\n"
     "    v_uv = a_uv;\n"
     "    v_col = a_col;\n"
-    "    v_corner_radius = a_corner_radius;\n"
+    "    v_corner_radii = a_corner_radii;\n"
     "    v_border_thickness = a_border_thickness;\n"
     "    v_elem_type = a_elem_type;\n"
     "}\n";
@@ -169,15 +169,17 @@ static const char g_bloom_gl_fs[] =
     "in vec2 v_half_size;\n"
     "in vec2 v_uv;\n"
     "in vec4 v_col;\n"
-    "in float v_corner_radius;\n"
+    "in vec4 v_corner_radii;\n"
     "in float v_border_thickness;\n"
     "flat in uint v_elem_type;\n"
     "uniform sampler2D u_texture;\n"
     "out vec4 frag_color;\n"
-    "float sdRoundBox(vec2 p, vec2 b, float r)\n"
+    "float sdRoundBox(vec2 p, vec2 b, vec4 r)\n"
     "{\n"
-    "    vec2 q = abs(p) - b + vec2(r);\n"
-    "    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;\n"
+    "    vec2 s = vec2(p.x > 0.0 ? r.y : r.x, p.x > 0.0 ? r.z : r.w);\n"
+    "    float corner_r = p.y > 0.0 ? s.y : s.x;\n"
+    "    vec2 q = abs(p) - b + vec2(corner_r);\n"
+    "    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - corner_r;\n"
     "}\n"
     "float median3(float r, float g, float b)\n"
     "{\n"
@@ -188,7 +190,7 @@ static const char g_bloom_gl_fs[] =
     "    vec4 out_col = v_col;\n"
     "    if (v_elem_type == 0u)\n"
     "    {\n"
-    "        float d = sdRoundBox(v_frag_pos - v_center, v_half_size, v_corner_radius);\n"
+    "        float d = sdRoundBox(v_frag_pos - v_center, v_half_size, v_corner_radii);\n"
     "        float aa = fwidth(d) * 0.75;\n"
     "        out_col.w *= 1.0 - smoothstep(-aa, aa, d);\n"
     "    }\n"
@@ -201,7 +203,7 @@ static const char g_bloom_gl_fs[] =
     "    }\n"
     "    else if (v_elem_type == 3u)\n"
     "    {\n"
-    "        float d = sdRoundBox(v_frag_pos - v_center, v_half_size, v_corner_radius);\n"
+    "        float d = sdRoundBox(v_frag_pos - v_center, v_half_size, v_corner_radii);\n"
     "        float bd = abs(d) - v_border_thickness * 0.5;\n"
     "        float aa = fwidth(bd) * 0.75;\n"
     "        out_col.w *= 1.0 - smoothstep(-aa, aa, bd);\n"
@@ -342,13 +344,13 @@ static bloom_bool bloom_gl_init(bloom_render_backend *backend)
     pglVertexAttribPointer(4, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(bloom_vertex), (void *)32);
 
     pglEnableVertexAttribArray(5);
-    pglVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, sizeof(bloom_vertex), (void *)36);
+    pglVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(bloom_vertex), (void *)36);
 
     pglEnableVertexAttribArray(6);
-    pglVertexAttribPointer(6, 1, GL_FLOAT, GL_FALSE, sizeof(bloom_vertex), (void *)40);
+    pglVertexAttribPointer(6, 1, GL_FLOAT, GL_FALSE, sizeof(bloom_vertex), (void *)52);
 
     pglEnableVertexAttribArray(7);
-    pglVertexAttribIPointer(7, 1, GL_UNSIGNED_INT, sizeof(bloom_vertex), (void *)44);
+    pglVertexAttribIPointer(7, 1, GL_UNSIGNED_INT, sizeof(bloom_vertex), (void *)56);
 
     pglBindVertexArray(0);
     data->ready = BLOOM_TRUE;

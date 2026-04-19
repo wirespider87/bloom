@@ -136,6 +136,16 @@ bloom_bool bloom_button_sized(const char *label, bloom_f32 w, bloom_f32 h)
     bloom_f32 text_w = bloom_label_width(ctx, label, s->font_size);
     bloom_f32 text_x = rect.x + (rect.w - text_w) * 0.5f;
     bloom_f32 text_y = bloom_centered_text_y(ctx, rect.y, rect.h, s->font_size);
+    
+    if (bloom_label_visible_length(label) == 1)
+    {
+        char c = label[0];
+        if (c == '+' || c == '-' || c == '*' || c == '/')
+        {
+            text_y += 1.0f; 
+        }
+    }
+    
     bloom_draw_label(ctx, bloom_v2(text_x, text_y), label, text_color, s->font_size);
 
     bloom_advance_layout(w, h);

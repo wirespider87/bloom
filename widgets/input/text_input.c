@@ -31,6 +31,7 @@ typedef struct bloom_text_edit_state
     bloom_i32 caret;
     bloom_i32 anchor;
     bloom_i32 preferred_column;
+    bloom_f64 last_edit_time;
 } bloom_text_edit_state;
 
 static bloom_text_edit_state g_text_edit_states[BLOOM_TEXT_EDIT_STATE_CAPACITY];
@@ -301,6 +302,7 @@ static bloom_i32 bloom_text_position_for_column(const char *text, bloom_i32 line
     {
         target = line_end;
     }
+    target = bloom_utf8_snap_to_boundary(text, line_end, target);
     return target;
 }
 
@@ -529,24 +531,31 @@ static bloom_i32 bloom_text_index_from_x(const char *text, bloom_i32 line_start,
                                          bloom_f32 local_x, bloom_f32 font_size)
 {
     bloom_i32 index;
+    bloom_i32 next;
+    bloom_f32 prev_advance;
+    bloom_f32 advance;
 
     if (local_x <= 0.0f)
     {
         return line_start;
     }
 
-    for (index = line_start; index < line_end; ++index)
+    prev_advance = 0.0f;
+    index = line_start;
+    while (index < line_end)
     {
-        bloom_f32 advance = bloom_text_width_n(text + line_start,
-                                               (bloom_u32)(index - line_start + 1),
-                                               font_size);
+        next = bloom_utf8_next_char(text, line_end, index);
+        if (next <= index)
+        {
+            break;
+        }
+        advance = bloom_text_width_n(text + line_start, (bloom_u32)(next - line_start), font_size);
         if (local_x < advance)
         {
-            bloom_f32 prev_advance = (index > line_start)
-                ? bloom_text_width_n(text + line_start, (bloom_u32)(index - line_start), font_size)
-                : 0.0f;
-            return (local_x - prev_advance) < (advance - local_x) ? index : (index + 1);
+            return (local_x - prev_advance) < (advance - local_x) ? index : next;
         }
+        prev_advance = advance;
+        index = next;
     }
 
     return line_end;
@@ -611,13 +620,12 @@ static void bloom_draw_text_selection(bloom_context *ctx, bloom_rect rect, const
     {
         bloom_f32 x0 = rect.x + s->field_padding_x + bloom_text_width_n(text, (bloom_u32)sel_start, font_size);
         bloom_f32 x1 = rect.x + s->field_padding_x + bloom_text_width_n(text, (bloom_u32)sel_end, font_size);
-        bloom_draw_rect_rounded(&ctx->draw_list,
+        bloom_draw_rect_filled(&ctx->draw_list,
             bloom_make_rect(x0 - 1.0f,
                             bloom_centered_text_y(ctx, rect.y, rect.h, font_size) - 1.0f,
                             (x1 - x0) + 2.0f,
                             line_h + 2.0f),
-            bloom_apply_state_layer(s->input_bg, s->input_cursor, 0.35f),
-            5.0f);
+            bloom_apply_state_layer(s->input_bg, s->input_cursor, 0.35f));
         return;
     }
 
@@ -652,10 +660,9 @@ static void bloom_draw_text_selection(bloom_context *ctx, bloom_rect rect, const
                     x1 = x0 + 6.0f;
                 }
 
-                bloom_draw_rect_rounded(&ctx->draw_list,
+                bloom_draw_rect_filled(&ctx->draw_list,
                     bloom_make_rect(x0 - 1.0f, line_y - 1.0f, (x1 - x0) + 2.0f, line_h + 2.0f),
-                    bloom_apply_state_layer(s->input_bg, s->input_cursor, 0.35f),
-                    4.0f);
+                    bloom_apply_state_layer(s->input_bg, s->input_cursor, 0.35f));
             }
 
             if (line_end >= bloom_text_length(text))
@@ -994,6 +1001,15 @@ static bloom_bool bloom_text_edit_process_input(bloom_context *ctx, bloom_text_e
         state->dragging = BLOOM_FALSE;
     }
 
+    if (changed || undo_action || ctx->input.text_input_len > 0 ||
+        ctx->input.keys_pressed[BLOOM_KEY_LEFT] || ctx->input.keys_pressed[BLOOM_KEY_RIGHT] ||
+        ctx->input.keys_pressed[BLOOM_KEY_HOME] || ctx->input.keys_pressed[BLOOM_KEY_END] ||
+        ctx->input.keys_pressed[BLOOM_KEY_BACKSPACE] || ctx->input.keys_pressed[BLOOM_KEY_DELETE] ||
+        (multiline && (ctx->input.keys_pressed[BLOOM_KEY_UP] || ctx->input.keys_pressed[BLOOM_KEY_DOWN] || ctx->input.keys_pressed[BLOOM_KEY_ENTER])))
+    {
+        state->last_edit_time = ctx->time;
+    }
+
     if (changed && !undo_action)
     {
         bloom_text_undo_push(ring, buf, state->caret, state->anchor);
@@ -1120,10 +1136,18 @@ static bloom_bool bloom_text_input_internal(const char *label, char *buf, bloom_
 
     if (focused)
     {
-        bloom_f32 blink = (bloom_f32)ctx->time;
-        if (((int)(blink * 2.0f)) % 2)
+        bloom_f64 time_since_edit = ctx->time - state->last_edit_time;
+        if (time_since_edit < 0.5)
         {
             bloom_draw_text_cursor(ctx, input_rect, buf, s->font_size, multiline, state);
+        }
+        else
+        {
+            bloom_f32 blink = (bloom_f32)(ctx->time - state->last_edit_time - 0.5);
+            if (((int)(blink * 2.0f)) % 2 == 0)
+            {
+                bloom_draw_text_cursor(ctx, input_rect, buf, s->font_size, multiline, state);
+            }
         }
     }
     bloom_draw_pop_clip(&ctx->draw_list);

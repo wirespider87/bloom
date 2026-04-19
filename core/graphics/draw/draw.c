@@ -201,7 +201,7 @@ static bloom_bool bloom_draw_reserve(bloom_draw_list *dl, bloom_u32 vtx_count, b
 }
 
 static bloom_vertex bloom_make_sdf_vertex(bloom_vec2 pos, bloom_vec2 center, bloom_vec2 half_size,
-                                          bloom_vec2 uv, bloom_u32 col, bloom_f32 corner_radius,
+                                          bloom_vec2 uv, bloom_u32 col, bloom_vec4 corner_radii,
                                           bloom_f32 border_thickness, bloom_u32 elem_type)
 {
     bloom_vertex v;
@@ -210,7 +210,7 @@ static bloom_vertex bloom_make_sdf_vertex(bloom_vec2 pos, bloom_vec2 center, blo
     v.half_size = half_size;
     v.uv = uv;
     v.col = col;
-    v.corner_radius = corner_radius;
+    v.corner_radii = corner_radii;
     v.border_thickness = border_thickness;
     v.elem_type = elem_type;
     return v;
@@ -224,14 +224,14 @@ static bloom_vertex bloom_make_plain_vertex(bloom_vec2 pos, bloom_u32 col)
     v.half_size = bloom_v2(0, 0);
     v.uv = bloom_v2(0, 0);
     v.col = col;
-    v.corner_radius = 0.0f;
+    memset(&v.corner_radii, 0, sizeof(v.corner_radii));
     v.border_thickness = 0.0f;
     v.elem_type = BLOOM_ELEM_PLAIN;
     return v;
 }
 
 static void bloom_draw_sdf_quad(bloom_draw_list *dl, bloom_rect rect, bloom_u32 col,
-                                bloom_f32 corner_radius, bloom_f32 border_thickness,
+                                bloom_vec4 corner_radii, bloom_f32 border_thickness,
                                 bloom_u32 elem_type)
 {
     bloom_f32 pad = 1.5f;
@@ -248,13 +248,13 @@ static void bloom_draw_sdf_quad(bloom_draw_list *dl, bloom_rect rect, bloom_u32 
     base = dl->vertex_count;
 
     dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(
-        bloom_v2(rect.x - pad, rect.y - pad), center, half_size, uv, col, corner_radius, border_thickness, elem_type);
+        bloom_v2(rect.x - pad, rect.y - pad), center, half_size, uv, col, corner_radii, border_thickness, elem_type);
     dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(
-        bloom_v2(rect.x + rect.w + pad, rect.y - pad), center, half_size, uv, col, corner_radius, border_thickness, elem_type);
+        bloom_v2(rect.x + rect.w + pad, rect.y - pad), center, half_size, uv, col, corner_radii, border_thickness, elem_type);
     dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(
-        bloom_v2(rect.x + rect.w + pad, rect.y + rect.h + pad), center, half_size, uv, col, corner_radius, border_thickness, elem_type);
+        bloom_v2(rect.x + rect.w + pad, rect.y + rect.h + pad), center, half_size, uv, col, corner_radii, border_thickness, elem_type);
     dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(
-        bloom_v2(rect.x - pad, rect.y + rect.h + pad), center, half_size, uv, col, corner_radius, border_thickness, elem_type);
+        bloom_v2(rect.x - pad, rect.y + rect.h + pad), center, half_size, uv, col, corner_radii, border_thickness, elem_type);
 
     dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 0);
     dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 1);
@@ -337,7 +337,8 @@ void bloom_draw_rect_filled(bloom_draw_list *dl, bloom_rect rect, bloom_color co
         return;
     }
 
-    bloom_draw_sdf_quad(dl, rect, bloom_color_to_u32(col), 0.0f, 0.0f, BLOOM_ELEM_SDF_RECT);
+    bloom_vec4 zero_r = {0, 0, 0, 0};
+    bloom_draw_sdf_quad(dl, rect, bloom_color_to_u32(col), zero_r, 0.0f, BLOOM_ELEM_SDF_RECT);
 }
 
 void bloom_draw_rect(bloom_draw_list *dl, bloom_rect rect, bloom_color col, bloom_f32 thickness)
@@ -347,7 +348,8 @@ void bloom_draw_rect(bloom_draw_list *dl, bloom_rect rect, bloom_color col, bloo
         return;
     }
 
-    bloom_draw_sdf_quad(dl, rect, bloom_color_to_u32(col), 0.0f, thickness, BLOOM_ELEM_SDF_BORDER);
+    bloom_vec4 zero_r = {0, 0, 0, 0};
+    bloom_draw_sdf_quad(dl, rect, bloom_color_to_u32(col), zero_r, thickness, BLOOM_ELEM_SDF_BORDER);
 }
 
 void bloom_draw_rect_rounded(bloom_draw_list *dl, bloom_rect rect, bloom_color col, bloom_f32 radius)
@@ -367,7 +369,8 @@ void bloom_draw_rect_rounded(bloom_draw_list *dl, bloom_rect rect, bloom_color c
         bloom_f32 r = radius;
         if (r > rect.w * 0.5f) r = rect.w * 0.5f;
         if (r > rect.h * 0.5f) r = rect.h * 0.5f;
-        bloom_draw_sdf_quad(dl, rect, bloom_color_to_u32(col), r, 0.0f, BLOOM_ELEM_SDF_RECT);
+        bloom_vec4 radii = {r, r, r, r};
+        bloom_draw_sdf_quad(dl, rect, bloom_color_to_u32(col), radii, 0.0f, BLOOM_ELEM_SDF_RECT);
     }
 }
 
@@ -388,7 +391,8 @@ void bloom_draw_rect_rounded_border(bloom_draw_list *dl, bloom_rect rect, bloom_
         bloom_f32 r = radius;
         if (r > rect.w * 0.5f) r = rect.w * 0.5f;
         if (r > rect.h * 0.5f) r = rect.h * 0.5f;
-        bloom_draw_sdf_quad(dl, rect, bloom_color_to_u32(col), r, thickness, BLOOM_ELEM_SDF_BORDER);
+        bloom_vec4 radii = {r, r, r, r};
+        bloom_draw_sdf_quad(dl, rect, bloom_color_to_u32(col), radii, thickness, BLOOM_ELEM_SDF_BORDER);
     }
 }
 
@@ -397,7 +401,7 @@ void bloom_draw_rect_custom(bloom_draw_list *dl, bloom_rect rect, bloom_color fi
                             bloom_corner_radii radii)
 {
     bloom_corner_radii nr;
-    bloom_f32 max_r;
+    bloom_vec4 v_radii;
 
     if (!dl || rect.w <= 0.0f || rect.h <= 0.0f)
     {
@@ -405,32 +409,39 @@ void bloom_draw_rect_custom(bloom_draw_list *dl, bloom_rect rect, bloom_color fi
     }
 
     nr = bloom_draw_normalize_corner_radii(rect, radii);
-    max_r = nr.top_left;
-    if (nr.top_right > max_r) max_r = nr.top_right;
-    if (nr.bottom_right > max_r) max_r = nr.bottom_right;
-    if (nr.bottom_left > max_r) max_r = nr.bottom_left;
+    v_radii.x = nr.top_left;
+    v_radii.y = nr.top_right;
+    v_radii.z = nr.bottom_right;
+    v_radii.w = nr.bottom_left;
 
     if (border_color.a > 0 && border_thickness > 0.0f)
     {
-        bloom_draw_sdf_quad(dl, rect, bloom_color_to_u32(border_color), max_r, border_thickness, BLOOM_ELEM_SDF_BORDER);
+        bloom_draw_sdf_quad(dl, rect, bloom_color_to_u32(border_color), v_radii, border_thickness, BLOOM_ELEM_SDF_BORDER);
     }
 
     if (fill_color.a > 0)
     {
         bloom_rect inner_rect = rect;
-        bloom_f32 inner_r = max_r;
+        bloom_vec4 inner_v_radii = v_radii;
 
         if (border_color.a > 0 && border_thickness > 0.0f)
         {
             inner_rect = bloom_make_rect(rect.x + border_thickness, rect.y + border_thickness,
                                          rect.w - border_thickness * 2.0f, rect.h - border_thickness * 2.0f);
-            inner_r = bloom_draw_clamp_f32(max_r - border_thickness, 0.0f, inner_rect.w * 0.5f);
-            if (inner_r > inner_rect.h * 0.5f) inner_r = inner_rect.h * 0.5f;
+            inner_v_radii.x = bloom_draw_clamp_f32(v_radii.x - border_thickness, 0.0f, inner_rect.w * 0.5f);
+            inner_v_radii.y = bloom_draw_clamp_f32(v_radii.y - border_thickness, 0.0f, inner_rect.w * 0.5f);
+            inner_v_radii.z = bloom_draw_clamp_f32(v_radii.z - border_thickness, 0.0f, inner_rect.w * 0.5f);
+            inner_v_radii.w = bloom_draw_clamp_f32(v_radii.w - border_thickness, 0.0f, inner_rect.w * 0.5f);
+            
+            if (inner_v_radii.x > inner_rect.h * 0.5f) inner_v_radii.x = inner_rect.h * 0.5f;
+            if (inner_v_radii.y > inner_rect.h * 0.5f) inner_v_radii.y = inner_rect.h * 0.5f;
+            if (inner_v_radii.z > inner_rect.h * 0.5f) inner_v_radii.z = inner_rect.h * 0.5f;
+            if (inner_v_radii.w > inner_rect.h * 0.5f) inner_v_radii.w = inner_rect.h * 0.5f;
         }
 
         if (inner_rect.w > 0.0f && inner_rect.h > 0.0f)
         {
-            bloom_draw_sdf_quad(dl, inner_rect, bloom_color_to_u32(fill_color), inner_r, 0.0f, BLOOM_ELEM_SDF_RECT);
+            bloom_draw_sdf_quad(dl, inner_rect, bloom_color_to_u32(fill_color), inner_v_radii, 0.0f, BLOOM_ELEM_SDF_RECT);
         }
     }
 }
@@ -500,10 +511,11 @@ void bloom_draw_line(bloom_draw_list *dl, bloom_vec2 a, bloom_vec2 b, bloom_colo
     base = dl->vertex_count;
     c = bloom_color_to_u32(col);
 
-    dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(p0, a, b, bloom_v2(0, 0), c, half_t, 0.0f, BLOOM_ELEM_SDF_LINE);
-    dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(p1, a, b, bloom_v2(0, 0), c, half_t, 0.0f, BLOOM_ELEM_SDF_LINE);
-    dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(p2, a, b, bloom_v2(0, 0), c, half_t, 0.0f, BLOOM_ELEM_SDF_LINE);
-    dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(p3, a, b, bloom_v2(0, 0), c, half_t, 0.0f, BLOOM_ELEM_SDF_LINE);
+    bloom_vec4 line_radii = {half_t, half_t, half_t, half_t};
+    dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(p0, a, b, bloom_v2(0, 0), c, line_radii, 0.0f, BLOOM_ELEM_SDF_LINE);
+    dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(p1, a, b, bloom_v2(0, 0), c, line_radii, 0.0f, BLOOM_ELEM_SDF_LINE);
+    dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(p2, a, b, bloom_v2(0, 0), c, line_radii, 0.0f, BLOOM_ELEM_SDF_LINE);
+    dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(p3, a, b, bloom_v2(0, 0), c, line_radii, 0.0f, BLOOM_ELEM_SDF_LINE);
 
     dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 0);
     dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 1);
@@ -527,7 +539,8 @@ void bloom_draw_circle_filled(bloom_draw_list *dl, bloom_vec2 center, bloom_f32 
     }
 
     rect = bloom_make_rect(center.x - radius, center.y - radius, radius * 2.0f, radius * 2.0f);
-    bloom_draw_sdf_quad(dl, rect, bloom_color_to_u32(col), radius, 0.0f, BLOOM_ELEM_SDF_RECT);
+    bloom_vec4 circle_radii = {radius, radius, radius, radius};
+    bloom_draw_sdf_quad(dl, rect, bloom_color_to_u32(col), circle_radii, 0.0f, BLOOM_ELEM_SDF_RECT);
 }
 
 void bloom_draw_text(bloom_draw_list *dl, bloom_vec2 pos, const char *text,
@@ -536,12 +549,6 @@ void bloom_draw_text(bloom_draw_list *dl, bloom_vec2 pos, const char *text,
     bloom_draw_text_n(dl, pos, text, (bloom_u32)strlen(text), col, font_size, font_texture);
 }
 
-/*
- * UTF-8: text_len is a byte count. Scalars are produced via bloom_text_shape_visual (Arabic joining
- * subset + simplified RTL runs for LTR paragraphs). Only atlas codepoints draw; missing glyphs use '?'.
- * Windows: GDI atlas. Other OS: embedded TTF raster (bloom_ttf). Color emoji (CBDT/COLR) and full
- * Indic/Devanagari shaping are not implemented - monochrome outlines only when cmap supplies a glyf.
- */
 void bloom_draw_text_n(bloom_draw_list *dl, bloom_vec2 pos, const char *text, bloom_u32 text_len,
                       bloom_color col, bloom_f32 font_size, bloom_u32 font_texture)
 {
@@ -665,14 +672,15 @@ void bloom_draw_text_n(bloom_draw_list *dl, bloom_vec2 pos, const char *text, bl
                 center = bloom_v2((draw_x0 + draw_x1) * 0.5f, (draw_y0 + draw_y1) * 0.5f);
                 half_size = bloom_v2((draw_x1 - draw_x0) * 0.5f, (draw_y1 - draw_y0) * 0.5f);
 
+                bloom_vec4 text_radii = {0, 0, 0, 0};
                 dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(
-                    bloom_v2(draw_x0, draw_y0), center, half_size, bloom_v2(u0, v0), c, 0.0f, 0.0f, BLOOM_ELEM_MSDF_TEXT);
+                    bloom_v2(draw_x0, draw_y0), center, half_size, bloom_v2(u0, v0), c, text_radii, 0.0f, BLOOM_ELEM_MSDF_TEXT);
                 dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(
-                    bloom_v2(draw_x1, draw_y0), center, half_size, bloom_v2(u1, v0), c, 0.0f, 0.0f, BLOOM_ELEM_MSDF_TEXT);
+                    bloom_v2(draw_x1, draw_y0), center, half_size, bloom_v2(u1, v0), c, text_radii, 0.0f, BLOOM_ELEM_MSDF_TEXT);
                 dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(
-                    bloom_v2(draw_x1, draw_y1), center, half_size, bloom_v2(u1, v1), c, 0.0f, 0.0f, BLOOM_ELEM_MSDF_TEXT);
+                    bloom_v2(draw_x1, draw_y1), center, half_size, bloom_v2(u1, v1), c, text_radii, 0.0f, BLOOM_ELEM_MSDF_TEXT);
                 dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(
-                    bloom_v2(draw_x0, draw_y1), center, half_size, bloom_v2(u0, v1), c, 0.0f, 0.0f, BLOOM_ELEM_MSDF_TEXT);
+                    bloom_v2(draw_x0, draw_y1), center, half_size, bloom_v2(u0, v1), c, text_radii, 0.0f, BLOOM_ELEM_MSDF_TEXT);
 
                 dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 0);
                 dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 1);

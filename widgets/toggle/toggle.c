@@ -85,17 +85,25 @@ bloom_bool bloom_checkbox(const char *label, bloom_bool *value)
     if (check_draw_t > 0.001f)
     {
         bloom_f32 mark_scale = 0.94f + (check_draw_t > 1.0f ? 0.04f : check_draw_t * 0.04f) - press_t * 0.02f;
-        bloom_f32 stroke = box_rect.w * 0.12f + checked_t * 0.10f;
+        bloom_f32 stroke = box_rect.w * 0.14f + checked_t * 0.08f;
         bloom_vec2 center = bloom_v2(box_rect.x + box_rect.w * 0.5f, box_rect.y + box_rect.h * 0.5f);
-        bloom_vec2 p0 = bloom_v2(center.x - box_rect.w * 0.22f * mark_scale,
-                                 center.y + box_rect.h * 0.02f * mark_scale);
-        bloom_vec2 p1 = bloom_v2(center.x - box_rect.w * 0.04f * mark_scale,
-                                 center.y + box_rect.h * 0.22f * mark_scale);
-        bloom_vec2 p2 = bloom_v2(center.x + box_rect.w * 0.24f * mark_scale,
-                                 center.y - box_rect.h * 0.18f * mark_scale);
+        
+        bloom_vec2 p0 = bloom_v2(center.x - box_rect.w * 0.28f * mark_scale,
+                                 center.y + box_rect.h * 0.04f * mark_scale);
+        bloom_vec2 p1 = bloom_v2(center.x - box_rect.w * 0.06f * mark_scale,
+                                 center.y + box_rect.h * 0.28f * mark_scale);
+        bloom_vec2 p2 = bloom_v2(center.x + box_rect.w * 0.34f * mark_scale,
+                                 center.y - box_rect.h * 0.24f * mark_scale);
+                                 
         bloom_f32 first_t = checked_t < 0.55f ? (checked_t / 0.55f) : 1.0f;
         bloom_f32 second_t = checked_t <= 0.35f ? 0.0f : ((checked_t - 0.35f) / 0.65f);
+        
         bloom_color mark_color = bloom_scale_alpha(s->window_bg, checked_t > 1.0f ? 1.0f : checked_t);
+        if (checked_t > 0.9f)
+        {
+            mark_color = bloom_scale_alpha(s->window_bg, checked_t);
+        }
+
         bloom_vec2 mid = bloom_v2(bloom_lerp_f32(p0.x, p1.x, first_t), bloom_lerp_f32(p0.y, p1.y, first_t));
         bloom_vec2 end = bloom_v2(bloom_lerp_f32(p1.x, p2.x, second_t), bloom_lerp_f32(p1.y, p2.y, second_t));
 

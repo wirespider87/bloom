@@ -53,6 +53,11 @@ typedef struct bloom_font_api
 	void (*init)(bloom_font *font);
 	bloom_bool (*build_default)(bloom_font *font, bloom_f32 size);
 	bloom_bool (*load_from_memory)(bloom_font *font, const bloom_u8 *data, bloom_u64 size, bloom_f32 pixel_size);
+	/* ranges: array of [start_codepoint, count] pairs, e.g. {0x0020, 95} for ASCII. range_count is number of pairs. */
+	bloom_bool (*load_from_memory_ex)(bloom_font *font, const bloom_u8 *data, bloom_u64 size, bloom_f32 pixel_size, const bloom_u32 *ranges, bloom_i32 range_count);
+	bloom_bool (*load_from_file)(bloom_font *font, const char *path, bloom_f32 pixel_size);
+	bloom_bool (*load_from_file_ex)(bloom_font *font, const char *path, bloom_f32 pixel_size, const bloom_u32 *ranges, bloom_i32 range_count);
+	bloom_bool (*load_from_system)(bloom_font *font, const char *name, bloom_f32 pixel_size);
 	void (*destroy)(bloom_font *font);
 	void (*set_active)(bloom_font *font);
 	bloom_font *(*get_active)(void);

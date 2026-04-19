@@ -436,18 +436,18 @@ static bloom_bool bloom_combo_activate_popup(bloom_context *ctx, const char *lab
     }
 
     g_combo_popup.popup_rect = bloom_make_rect(combo_rect.x, combo_rect.y + combo_rect.h + 6.0f,
-                                               combo_rect.w, visible_h + 8.0f);
+                                               combo_rect.w, visible_h + 16.0f);
     {
         bloom_bool reserve_scrollbar_lane = (g_combo_popup.last_item_count > resolved->visible_items) ? BLOOM_TRUE : BLOOM_FALSE;
-        bloom_f32 viewport_w = g_combo_popup.popup_rect.w - 8.0f;
+        bloom_f32 viewport_w = g_combo_popup.popup_rect.w - 16.0f;
         if (reserve_scrollbar_lane)
         {
-            viewport_w -= s->scrollbar_width + 6.0f;
+            viewport_w -= s->scrollbar_width + 4.0f;
         }
-        g_combo_popup.viewport_rect = bloom_make_rect(g_combo_popup.popup_rect.x + 4.0f,
-                                                      g_combo_popup.popup_rect.y + 4.0f,
+        g_combo_popup.viewport_rect = bloom_make_rect(g_combo_popup.popup_rect.x + 8.0f,
+                                                      g_combo_popup.popup_rect.y + 8.0f,
                                                       viewport_w,
-                                                      g_combo_popup.popup_rect.h - 8.0f);
+                                                      g_combo_popup.popup_rect.h - 16.0f);
     }
     g_combo_popup.item_origin = bloom_v2(g_combo_popup.viewport_rect.x, g_combo_popup.viewport_rect.y);
     g_combo_popup.item_count = 0;
@@ -521,15 +521,32 @@ static void bloom_combo_prepare_search_field(void)
     win->layout.last_item_pos = win->layout.cursor;
     win->layout.last_item_size = bloom_v2(0.0f, 0.0f);
 
-    bloom_push_id(g_combo_popup.label_text);
-    bloom_text_input("##search", g_combo_popup.filter_buf, g_combo_popup.filter_buf_size);
-    bloom_pop_id();
-
-    consumed_h = win->layout.cursor.y - g_combo_popup.viewport_rect.y;
-    if (consumed_h < g_combo_popup.item_height)
     {
-        consumed_h = g_combo_popup.item_height;
+        bloom_bool saved_input_block;
+        bloom_rect saved_input_rect;
+        bloom_id search_field_id;
+
+        bloom_push_id(g_combo_popup.label_text);
+        search_field_id = bloom_get_id("##search");
+
+        if (g_combo_popup.open_frame == ctx->frame_count)
+        {
+            ctx->focus_id = search_field_id;
+        }
+
+        saved_input_block   = g_popup_input_block;
+        saved_input_rect    = g_popup_input_rect;
+        g_popup_input_block = BLOOM_FALSE;
+
+        bloom_text_input("##search", g_combo_popup.filter_buf, g_combo_popup.filter_buf_size);
+
+        g_popup_input_block = saved_input_block;
+        g_popup_input_rect  = saved_input_rect;
+
+        bloom_pop_id();
     }
+
+    consumed_h = g_combo_popup.item_height;
 
     win->layout = saved_layout;
     g_combo_popup.search_height = consumed_h;
@@ -553,6 +570,8 @@ static void bloom_combo_prepare_search_field(void)
 
 static void bloom_combo_close_popup(bloom_context *ctx)
 {
+    bloom_i32 saved_last_item_count;
+
     if (ctx && g_combo_popup.clip_active)
     {
         bloom_draw_pop_clip(&ctx->draw_list);
@@ -572,7 +591,9 @@ static void bloom_combo_close_popup(bloom_context *ctx)
     g_popup_persist_open = BLOOM_FALSE;
     g_popup_persist_rect = bloom_make_rect(0.0f, 0.0f, 0.0f, 0.0f);
 
+    saved_last_item_count = g_combo_popup.last_item_count;
     memset(&g_combo_popup, 0, sizeof(g_combo_popup));
+    g_combo_popup.last_item_count = saved_last_item_count;
 }
 
 static bloom_bool bloom_combo_begin_internal(const char *label, const char *preview,
@@ -616,7 +637,9 @@ static bloom_bool bloom_combo_begin_internal(const char *label, const char *prev
         }
         else
         {
+            bloom_i32 saved_count = g_combo_popup.last_item_count;
             memset(&g_combo_popup, 0, sizeof(g_combo_popup));
+            g_combo_popup.last_item_count = saved_count;
             g_combo_popup.open = BLOOM_TRUE;
             g_combo_popup.multi_select = multi_select;
             g_combo_popup.smooth_scroll = resolved.smooth_scroll;
@@ -720,10 +743,16 @@ static void bloom_combo_end_internal(void)
 
     if (g_combo_popup.max_scroll > 0.0f)
     {
-        track_rect = bloom_make_rect(g_combo_popup.popup_rect.x + g_combo_popup.popup_rect.w - s->scrollbar_width - s->scrollbar_inset,
-                                     g_combo_popup.popup_rect.y + s->scrollbar_inset,
-                                     s->scrollbar_width,
-                                     g_combo_popup.popup_rect.h - s->scrollbar_inset * 2.0f);
+        {
+            /* start scrollbars below search bars. */
+            bloom_f32 sb_top = g_combo_popup.popup_rect.y + s->scrollbar_inset + g_combo_popup.search_height;
+            bloom_f32 sb_h   = g_combo_popup.popup_rect.h - s->scrollbar_inset * 2.0f - g_combo_popup.search_height;
+            if (sb_h < 1.0f) { sb_h = 1.0f; }
+            track_rect = bloom_make_rect(g_combo_popup.popup_rect.x + g_combo_popup.popup_rect.w - s->scrollbar_width - s->scrollbar_inset,
+                                         sb_top,
+                                         s->scrollbar_width,
+                                         sb_h);
+        }
         track_h = track_rect.h;
         if (track_h < 1.0f)
         {
@@ -890,7 +919,8 @@ static bloom_bool bloom_combo_item_internal(const char *label, bloom_bool select
         bg = bloom_apply_state_layer(bg, s->input_cursor, 0.22f);
     }
 
-    bloom_draw_rect_rounded(&ctx->draw_list, item_rect, bg, 10.0f);
+
+    bloom_draw_rect_filled(&ctx->draw_list, item_rect, bg);
     bloom_draw_label(ctx,
                      bloom_v2(item_rect.x + s->field_padding_x,
                               bloom_centered_text_y(ctx, item_rect.y, g_combo_popup.item_height, s->font_size)),
@@ -1004,7 +1034,9 @@ bloom_bool bloom_action_split_begin(const char *label, bloom_bool *primary_press
         }
         else
         {
+            bloom_i32 saved_count = g_combo_popup.last_item_count;
             memset(&g_combo_popup, 0, sizeof(g_combo_popup));
+            g_combo_popup.last_item_count = saved_count;
             g_combo_popup.open = BLOOM_TRUE;
             g_combo_popup.multi_select = BLOOM_FALSE;
             g_combo_popup.id = arrow_id;

@@ -36,7 +36,7 @@ static const char g_bloom_shader_src[] =
     "    float2 half_size        : HALFSIZE;\n"
     "    float2 uv               : TEXCOORD0;\n"
     "    float4 col              : COLOR0;\n"
-    "    float  corner_radius    : CORNERRADIUS;\n"
+    "    float4 corner_radii     : CORNERRADII;\n"
     "    float  border_thickness : BORDERTHICKNESS;\n"
     "    uint   elem_type        : ELEMTYPE;\n"
     "};\n"
@@ -48,7 +48,7 @@ static const char g_bloom_shader_src[] =
     "    float2 half_size        : HALFSIZE;\n"
     "    float2 uv               : TEXCOORD0;\n"
     "    float4 col              : COLOR0;\n"
-    "    float  corner_radius    : CORNERRADIUS;\n"
+    "    float4 corner_radii     : CORNERRADII;\n"
     "    float  border_thickness : BORDERTHICKNESS;\n"
     "    uint   elem_type        : ELEMTYPE;\n"
     "};\n"
@@ -61,17 +61,19 @@ static const char g_bloom_shader_src[] =
     "    output.half_size = input.half_size;\n"
     "    output.uv = input.uv;\n"
     "    output.col = input.col;\n"
-    "    output.corner_radius = input.corner_radius;\n"
+    "    output.corner_radii = input.corner_radii;\n"
     "    output.border_thickness = input.border_thickness;\n"
     "    output.elem_type = input.elem_type;\n"
     "    return output;\n"
     "}\n"
     "Texture2D    texture0 : register(t0);\n"
     "SamplerState sampler0 : register(s0);\n"
-    "float sdRoundBox(float2 p, float2 b, float r)\n"
+    "float sdRoundBox(float2 p, float2 b, float4 r)\n"
     "{\n"
-    "    float2 q = abs(p) - b + float2(r, r);\n"
-    "    return length(max(q, 0.0f)) + min(max(q.x, q.y), 0.0f) - r;\n"
+    "    float2 s = float2(p.x > 0.0 ? r.y : r.x, p.x > 0.0 ? r.z : r.w);\n"
+    "    float corner_r = p.y > 0.0 ? s.y : s.x;\n"
+    "    float2 q = abs(p) - b + float2(corner_r, corner_r);\n"
+    "    return length(max(q, 0.0f)) + min(max(q.x, q.y), 0.0f) - corner_r;\n"
     "}\n"
     "float median3(float r, float g, float b)\n"
     "{\n"
@@ -82,7 +84,7 @@ static const char g_bloom_shader_src[] =
     "    float4 out_col = input.col;\n"
     "    if (input.elem_type == 0)\n"
     "    {\n"
-    "        float d = sdRoundBox(input.frag_pos - input.center, input.half_size, input.corner_radius);\n"
+    "        float d = sdRoundBox(input.frag_pos - input.center, input.half_size, input.corner_radii);\n"
     "        float aa = fwidth(d) * 0.75;\n"
     "        out_col.w *= 1.0 - smoothstep(-aa, aa, d);\n"
     "    }\n"
@@ -95,7 +97,7 @@ static const char g_bloom_shader_src[] =
     "    }\n"
     "    else if (input.elem_type == 3)\n"
     "    {\n"
-    "        float d = sdRoundBox(input.frag_pos - input.center, input.half_size, input.corner_radius);\n"
+    "        float d = sdRoundBox(input.frag_pos - input.center, input.half_size, input.corner_radii);\n"
     "        float bd = abs(d) - input.border_thickness * 0.5;\n"
     "        float aa = fwidth(bd) * 0.75;\n"
     "        out_col.w *= 1.0 - smoothstep(-aa, aa, bd);\n"
@@ -105,7 +107,7 @@ static const char g_bloom_shader_src[] =
     "        float2 pa = input.frag_pos - input.center;\n"
     "        float2 ba = input.half_size - input.center;\n"
     "        float h = saturate(dot(pa, ba) / dot(ba, ba));\n"
-    "        float d = length(pa - ba * h) - input.corner_radius;\n"
+    "        float d = length(pa - ba * h) - input.corner_radii.x;\n"
     "        float aa = fwidth(d) * 0.75;\n"
     "        out_col.w *= 1.0 - smoothstep(-aa, aa, d);\n"
     "    }\n"
@@ -200,9 +202,9 @@ static bloom_bool bloom_d3d11_init(bloom_render_backend *backend)
             { "HALFSIZE",        0, DXGI_FORMAT_R32G32_FLOAT,   0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0 },
             { "TEXCOORD",        0, DXGI_FORMAT_R32G32_FLOAT,   0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 },
             { "COLOR",           0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "CORNERRADIUS",    0, DXGI_FORMAT_R32_FLOAT,      0, 36, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "BORDERTHICKNESS", 0, DXGI_FORMAT_R32_FLOAT,      0, 40, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "ELEMTYPE",        0, DXGI_FORMAT_R32_UINT,       0, 44, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "CORNERRADII",     0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 36, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "BORDERTHICKNESS", 0, DXGI_FORMAT_R32_FLOAT,      0, 52, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "ELEMTYPE",        0, DXGI_FORMAT_R32_UINT,       0, 56, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         };
         hr = ID3D11Device_CreateInputLayout(d->device,
                 layout, 8,

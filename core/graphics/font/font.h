@@ -40,6 +40,10 @@ typedef struct bloom_font
 void bloom_font_init(bloom_font *font);
 bloom_bool bloom_font_build_default(bloom_font *font, bloom_f32 size);
 bloom_bool bloom_font_load_from_memory(bloom_font *font, const bloom_u8 *data, bloom_u64 size, bloom_f32 pixel_size);
+bloom_bool bloom_font_load_from_memory_ex(bloom_font *font, const bloom_u8 *data, bloom_u64 size, bloom_f32 pixel_size, const bloom_u32 *ranges, bloom_i32 range_count);
+bloom_bool bloom_font_load_from_file(bloom_font *font, const char *path, bloom_f32 pixel_size);
+bloom_bool bloom_font_load_from_file_ex(bloom_font *font, const char *path, bloom_f32 pixel_size, const bloom_u32 *ranges, bloom_i32 range_count);
+bloom_bool bloom_font_load_from_system(bloom_font *font, const char *name, bloom_f32 pixel_size);
 void bloom_font_destroy(bloom_font *font);
 void bloom_font_set_active(bloom_font *font);
 bloom_font *bloom_font_get_active(void);
