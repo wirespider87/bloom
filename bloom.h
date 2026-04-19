@@ -69,6 +69,8 @@ typedef struct bloom_render_module_api
 {
 	bloom_render_backend *(*create_opengl_backend)(void);
 	void (*destroy_opengl_backend)(bloom_render_backend *backend);
+	bloom_render_backend *(*create_d3d11_backend)(void *device, void *device_ctx);
+	void (*destroy_d3d11_backend)(bloom_render_backend *backend);
 } bloom_render_module_api;
 
 typedef struct bloom_platform_api

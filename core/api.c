@@ -668,6 +668,25 @@ static void bloom_api_destroy_opengl_backend(bloom_render_backend *backend)
 #endif
 }
 
+static bloom_render_backend *bloom_api_create_d3d11_backend(void *device, void *device_ctx)
+{
+#ifdef BLOOM_D3D11_BACKEND
+    return bloom_create_d3d11_backend(device, device_ctx);
+#else
+    (void)device; (void)device_ctx;
+    return NULL;
+#endif
+}
+
+static void bloom_api_destroy_d3d11_backend(bloom_render_backend *backend)
+{
+#ifdef BLOOM_D3D11_BACKEND
+    bloom_destroy_d3d11_backend(backend);
+#else
+    (void)backend;
+#endif
+}
+
 static const bloom_api g_bloom_api = {
     bloom_api_v2,
     bloom_api_rect_make,
@@ -841,7 +860,9 @@ static const bloom_api g_bloom_api = {
     },
     {
         bloom_api_create_opengl_backend,
-        bloom_api_destroy_opengl_backend
+        bloom_api_destroy_opengl_backend,
+        bloom_api_create_d3d11_backend,
+        bloom_api_destroy_d3d11_backend
     },
     {
         bloom_platform_create,

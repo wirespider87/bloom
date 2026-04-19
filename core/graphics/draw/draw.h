@@ -17,6 +17,7 @@ typedef struct bloom_vertex
     bloom_vec4  corner_radii;
     bloom_f32   border_thickness;
     bloom_u32   elem_type;
+    bloom_u32   _pad;
 } bloom_vertex;
 
 typedef bloom_u16 bloom_draw_idx;

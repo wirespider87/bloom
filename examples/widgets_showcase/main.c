@@ -428,14 +428,27 @@ int main(void)
         return 1;
     }
 
+#if defined(BLOOM_D3D11_BACKEND) && !defined(BLOOM_OPENGL_BACKEND)
+    {
+        extern void* bloom_platform_get_d3d11_device(bloom_platform_window*);
+        extern void* bloom_platform_get_d3d11_ctx(bloom_platform_window*);
+        void* device = bloom_platform_get_d3d11_device(window);
+        void* device_ctx = bloom_platform_get_d3d11_ctx(window);
+        backend = bloom->render.create_d3d11_backend(device, device_ctx);
+    }
+#elif defined(BLOOM_OPENGL_BACKEND)
     backend = bloom->render.create_opengl_backend();
+#endif
+
     if (!backend || !backend->init(backend))
     {
+#if defined(BLOOM_D3D11_BACKEND)
+        fprintf(stderr, "Failed to initialize D3D11 backend.\n");
+        if (backend) bloom->render.destroy_d3d11_backend(backend);
+#else
         fprintf(stderr, "Failed to initialize OpenGL backend.\n");
-        if (backend)
-        {
-            bloom->render.destroy_opengl_backend(backend);
-        }
+        if (backend) bloom->render.destroy_opengl_backend(backend);
+#endif
         bloom->platform.destroy(window);
         bloom->destroy_context(ctx);
         return 1;
@@ -486,7 +499,11 @@ int main(void)
         default_font->texture_id = 0;
     }
 
+#if defined(BLOOM_D3D11_BACKEND) && !defined(BLOOM_OPENGL_BACKEND)
+    bloom->render.destroy_d3d11_backend(backend);
+#elif defined(BLOOM_OPENGL_BACKEND)
     bloom->render.destroy_opengl_backend(backend);
+#endif
     bloom->platform.destroy(window);
     bloom->destroy_context(ctx);
 
