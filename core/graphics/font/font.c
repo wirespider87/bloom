@@ -541,8 +541,8 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
         int dst_y1;
         bloom_glyph *g;
 
-        /* Pre render clear */ 
-        PatBlt(mem_dc, 0, 0, src_cell_w, src_cell_h, BLACKNESS);
+/* Pre render clear */ 
+PatBlt(mem_dc, 0, 0, src_cell_w, src_cell_h, BLACKNESS);
         GetTextExtentPoint32W(mem_dc, &wch, 1, &extent);
 
         draw_y_offset = bloom_font_align_down_int((src_cell_h - tm.tmHeight) / 2, oversample);
@@ -555,6 +555,7 @@ static bloom_bool bloom_font_build_gdi_ex(bloom_font *font, bloom_f32 size, cons
         draw_y = draw_y_offset;
         TextOutW(mem_dc, draw_x, draw_y, &wch, 1);
         GdiFlush();
+
 
         dst_x0 = dst_cell_x + (draw_x / oversample);
         dst_y0 = dst_cell_y + (draw_y / oversample);
@@ -703,6 +704,7 @@ static void bloom_font_ttf_blit(bloom_u8 *atlas, int atlas_w, int atlas_h,
 
 static bloom_bool bloom_font_build_ttf_from_buffer(bloom_font *font, const bloom_u8 *data, int data_len,
                                                     bloom_f32 size, const bloom_u32 *custom_ranges, bloom_i32 range_count)
+
 {
     bloom_ttf_font ttf;
     const int oversample = 4;
@@ -945,6 +947,7 @@ static bloom_bool bloom_font_try_default_unix_font(bloom_font *font, bloom_f32 s
 
         fclose(fp);
         built = bloom_font_build_ttf_from_buffer(font, buf, (int)sz, size, NULL, 0);
+
         free(buf);
         if (built)
         {
@@ -1083,6 +1086,7 @@ bloom_bool bloom_font_load_from_system(bloom_font *font, const char *name, bloom
 #else
     /* TODO: handle non windows */
     return BLOOM_FALSE;
+
 #endif
 }
 
@@ -1170,6 +1174,7 @@ bloom_f32 bloom_font_char_width(bloom_font *font, bloom_u32 codepoint)
 
     if (!font->valid)
     {
+
         if (codepoint >= 32u)
         {
             return font->size * 0.55f;

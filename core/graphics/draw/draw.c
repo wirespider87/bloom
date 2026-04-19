@@ -682,6 +682,12 @@ void bloom_draw_text(bloom_draw_list *dl, bloom_vec2 pos, const char *text,
     bloom_draw_text_n(dl, pos, text, (bloom_u32)strlen(text), col, font_size, font_texture);
 }
 
+/*
+ * UTF-8: text_len is a byte count. Scalars are produced via bloom_text_shape_visual (Arabic joining
+ * subset + simplified RTL runs for LTR paragraphs). Only atlas codepoints draw; missing glyphs use '?'.
+ * Windows: GDI atlas. Other OS: embedded TTF raster (bloom_ttf). Color emoji (CBDT/COLR) and full
+ * Indic/Devanagari shaping are not implemented - monochrome outlines only when cmap supplies a glyf.
+ */
 void bloom_draw_text_n(bloom_draw_list *dl, bloom_vec2 pos, const char *text, bloom_u32 text_len,
                       bloom_color col, bloom_f32 font_size, bloom_u32 font_texture)
 {
