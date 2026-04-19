@@ -134,9 +134,9 @@ static void showcase_draw(showcase_state *state)
         bloom->same_line();
         bloom->button_mini("Mini");
         bloom->same_line();
-        bloom->button_ghost("Ghost", 92.0f, 30.0f);
+        bloom->button_ghost("Ghost Button", 0.0f, 0.0f);
         bloom->same_line();
-        bloom->button_direction("Dir", BLOOM_DIRECTION_RIGHT);
+        bloom->button_direction("Direction Arrow", BLOOM_DIRECTION_RIGHT);
 
         bloom->choice_strip("Choice Strip", choice_items, 4, &state->choice_selected);
         bloom->list_bullet("Bullet List Entry");
@@ -275,13 +275,9 @@ static void showcase_draw(showcase_state *state)
 
         bloom->separator();
         bloom->text("Color Widgets");
-        bloom->color_edit3("Color Edit3", state->color3);
-        bloom->color_edit4("Color Edit4", state->color4);
-        bloom->color_edit_rgb("Color Edit RGB", state->color3, BLOOM_COLOR_FLAGS_NONE);
-        bloom->color_edit_rgba("Color Edit RGBA", state->color4, BLOOM_COLOR_FLAGS_NONE);
-        bloom->color_pick_rgb("Color Pick RGB", state->color3, BLOOM_COLOR_FLAGS_NONE);
+        bloom->color_edit4("Color Edit RGBA", state->color4);
         bloom->color_pick_rgba("Color Pick RGBA", state->color4, BLOOM_COLOR_FLAGS_NONE);
-        bloom->color_swatch("Color Swatch", state->color4, 120.0f, 18.0f);
+        bloom->color_swatch("Color Swatch", state->color4, 0, 0);
 
         bloom->separator();
         bloom->text("Table and Tree Widgets");
@@ -314,7 +310,40 @@ static void showcase_draw(showcase_state *state)
             bloom->tree_pop();
         }
 
-        bloom->collapsing_header("Collapsing Header");
+        if (bloom->collapsing_header("Collapsing Header"))
+        {
+            bloom->text("This content is now visible inside the collapsing header.");
+            bloom->text("Collapsing headers are great for grouping sections.");
+            bloom->button("Header Button");
+        }
+        bloom->separator();
+
+        if (bloom->tree_node("Style and Rounding Settings"))
+        {
+            bloom_style *s = bloom->get_style();
+            bloom->slider_float("Window Rounding", &s->window_rounding, 0.0f, 48.0f);
+            bloom->slider_float("Child Rounding", &s->child_rounding, 0.0f, 32.0f);
+            bloom->slider_float("Popup Rounding", &s->popup_rounding, 0.0f, 32.0f);
+            bloom->slider_float("Button Rounding", &s->button_rounding, 0.0f, 32.0f);
+            bloom->slider_float("Input Rounding", &s->input_rounding, 0.0f, 24.0f);
+            bloom->slider_float("Slider Rounding", &s->slider_rounding, 0.0f, 16.0f);
+            bloom->slider_float("Scrollbar Rounding", &s->scrollbar_rounding, 0.0f, 12.0f);
+            bloom->slider_float("Grab Rounding", &s->grab_rounding, 0.0f, 12.0f);
+            bloom->slider_float("Frame Rounding", &s->frame_rounding, 0.0f, 12.0f);
+            bloom->slider_float("Tab Rounding", &s->tab_rounding, 0.0f, 24.0f);
+            bloom->slider_float("Tooltip Rounding", &s->tooltip_rounding, 0.0f, 16.0f);
+            bloom->slider_float("Checkbox Rounding", &s->checkbox_rounding, 0.0f, 12.0f);
+            bloom->slider_float("Table Rounding", &s->table_rounding, 0.0f, 24.0f);
+            bloom->slider_float("Color Preview Rounding", &s->color_preview_rounding, 0.0f, 24.0f);
+
+            bloom->spacing();
+            bloom->slider_float("Window Padding", &s->window_padding, 0.0f, 40.0f);
+            bloom->slider_float("Item Spacing", &s->item_spacing, 0.0f, 30.0f);
+            bloom->slider_float("Touch Padding", &s->touch_padding, 0.0f, 20.0f);
+
+            if (bloom->button("Reset to Default")) bloom_style_default(s);
+            bloom->tree_pop();
+        }
         bloom->separator();
 
         bloom->text("Utility Widgets (hover for tooltip)");
@@ -463,4 +492,3 @@ int main(void)
 
     return 0;
 }
-

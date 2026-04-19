@@ -60,10 +60,19 @@ typedef struct bloom_style
     bloom_color table_border;
 
     bloom_f32   window_rounding;
+    bloom_f32   child_rounding;
+    bloom_f32   popup_rounding;
     bloom_f32   button_rounding;
     bloom_f32   slider_rounding;
     bloom_f32   input_rounding;
     bloom_f32   scrollbar_rounding;
+    bloom_f32   grab_rounding;
+    bloom_f32   frame_rounding;
+    bloom_f32   tab_rounding;
+    bloom_f32   tooltip_rounding;
+    bloom_f32   checkbox_rounding;
+    bloom_f32   table_rounding;
+    bloom_f32   checkerboard_rounding;
 
     bloom_f32   window_padding;
     bloom_f32   item_spacing;

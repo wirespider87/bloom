@@ -18,7 +18,7 @@ static bloom_bool bloom_slider_float_internal(const char *label, bloom_f32 *valu
     bloom_f32 slider_w;
     bloom_f32 control_h;
     bloom_f32 track_h;
-    bloom_f32 thumb_r;
+    bloom_f32 thumb_size;
     bloom_f32 slider_y;
     bloom_rect control_rect;
     bloom_rect slider_rect;
@@ -54,12 +54,12 @@ static bloom_bool bloom_slider_float_internal(const char *label, bloom_f32 *valu
     slider_w = ctx->current_window->layout.available_width;
     control_h = bloom_scaled_line_height(ctx, s->font_size) + s->field_padding_y * 1.2f;
     track_h = resolved.show_grab ? 6.0f : 8.0f;
-    thumb_r = bloom_scaled_line_height(ctx, s->font_size) * 0.43f;
+    thumb_size = bloom_scaled_line_height(ctx, s->font_size) * 0.86f;
     slider_y = pos.y + label_h + s->label_gap;
     control_rect = bloom_make_rect(pos.x, slider_y, slider_w, control_h);
     slider_rect = bloom_make_rect(pos.x, slider_y + (control_h - track_h) * 0.5f, slider_w, track_h);
-    track_x0 = slider_rect.x + (resolved.show_grab ? thumb_r : 0.0f);
-    track_w = slider_rect.w - (resolved.show_grab ? thumb_r * 2.0f : 0.0f);
+    track_x0 = slider_rect.x + (resolved.show_grab ? thumb_size * 0.5f : 0.0f);
+    track_w = slider_rect.w - (resolved.show_grab ? thumb_size : 0.0f);
     hovered = bloom_widget_hovered(control_rect);
     range = max_val - min_val;
     if (range <= 0.0f)
@@ -137,6 +137,45 @@ static bloom_bool bloom_slider_float_internal(const char *label, bloom_f32 *valu
     value_chip_border = hovered || ctx->active_id == id
         ? bloom_color_mix(s->input_border, s->input_cursor, 0.48f)
         : bloom_scale_alpha(s->input_border, 0.82f);
+    
+    /* double click or ctrl+click focus */
+    {
+        bloom_id chip_id = id ^ 0x4D14u;
+        bloom_bool chip_hovered = bloom_widget_hovered(value_chip_rect);
+        bloom_bool double_clicked = bloom_widget_double_clicked(ctx, chip_id, chip_hovered);
+        bloom_bool ctrl_clicked = (ctx->input.ctrl_held && chip_hovered && ctx->input.mouse_pressed[BLOOM_MOUSE_LEFT]);
+        
+        if (double_clicked || ctrl_clicked)
+        {
+            ctx->focus_id = chip_id;
+            ctx->last_manual_edit_time = ctx->time;
+        }
+        
+        if (ctx->focus_id == chip_id)
+        {
+            bloom_f64 val64 = (bloom_f64)*value;
+            bloom_vec2 saved_cursor = ctx->current_window->layout.cursor;
+            bloom_f32 saved_avail = ctx->current_window->layout.available_width;
+            ctx->current_window->layout.cursor = bloom_v2(value_chip_rect.x, value_chip_rect.y);
+            ctx->current_window->layout.available_width = value_chip_rect.w;
+            if (bloom_numeric_input("##edit", &val64, integer_mode ? BLOOM_VALUE_KIND_INT : BLOOM_VALUE_KIND_FLOAT))
+            {
+                *value = (bloom_f32)val64;
+                if (*value < min_val) *value = min_val;
+                if (*value > max_val) *value = max_val;
+                changed = BLOOM_TRUE;
+            }
+            ctx->current_window->layout.cursor = saved_cursor;
+            ctx->current_window->layout.available_width = saved_avail;
+            
+            /* if no focus continue draw. */
+            bloom_advance_layout(slider_w, label_h + s->label_gap + control_h + s->touch_padding);
+            return changed;
+        }
+        if (chip_hovered && ctx->input.mouse_pressed[BLOOM_MOUSE_LEFT]) ctx->active_id = chip_id;
+        if (bloom_widget_released_inside(ctx, chip_id, chip_hovered)) {}
+    }
+
     track_bg = bloom_apply_state_layer(s->input_bg, s->text_default, 0.10f);
     track_border = hovered || ctx->active_id == id
         ? bloom_color_mix(s->input_border, s->input_cursor, 0.38f)
@@ -146,12 +185,9 @@ static bloom_bool bloom_slider_float_internal(const char *label, bloom_f32 *valu
     bloom_draw_label(ctx, bloom_v2(pos.x, pos.y), label,
                      hovered || ctx->active_id == id ? s->input_cursor : s->text_disabled,
                      s->font_size * 0.9f);
-    bloom_draw_rect_rounded(&ctx->draw_list, value_chip_rect, value_chip_bg, value_chip_rect.h * 0.5f);
-    bloom_draw_rect_rounded_border(&ctx->draw_list,
-                                   value_chip_rect,
-                                   value_chip_border,
-                                   value_chip_rect.h * 0.5f,
-                                   1.0f);
+    
+    bloom_draw_rect_rounded(&ctx->draw_list, value_chip_rect, value_chip_bg, s->grab_rounding);
+    bloom_draw_rect_rounded_border(&ctx->draw_list, value_chip_rect, value_chip_border, s->grab_rounding, 1.0f);
 
     if (hover_t > 0.001f || active_t > 0.001f)
     {
@@ -162,15 +198,8 @@ static bloom_bool bloom_slider_float_internal(const char *label, bloom_f32 *valu
             s->slider_rounding + 2.0f);
     }
 
-    bloom_draw_rect_rounded(&ctx->draw_list,
-                            slider_rect,
-                            track_bg,
-                            s->slider_rounding + (resolved.show_grab ? 0.0f : 2.0f));
-    bloom_draw_rect_rounded_border(&ctx->draw_list,
-                                   slider_rect,
-                                   track_border,
-                                   s->slider_rounding + (resolved.show_grab ? 0.0f : 2.0f),
-                                   1.0f);
+    bloom_draw_rect_rounded(&ctx->draw_list, slider_rect, track_bg, s->slider_rounding);
+    bloom_draw_rect_rounded_border(&ctx->draw_list, slider_rect, track_border, s->slider_rounding, 1.0f);
 
     {
         bloom_f32 thumb_center_x = track_x0 + display_pos_t * track_w;
@@ -180,30 +209,30 @@ static bloom_bool bloom_slider_float_internal(const char *label, bloom_f32 *valu
             bloom_draw_rect_rounded(&ctx->draw_list,
                 bloom_make_rect(slider_rect.x, slider_rect.y, fill_w, slider_rect.h),
                 fill_color,
-                s->slider_rounding + (resolved.show_grab ? 0.0f : 2.0f));
+                s->slider_rounding);
         }
 
         if (resolved.show_grab)
         {
-            bloom_f32 thumb_visual_r = thumb_r + hover_t * 0.35f + active_t * 0.75f;
+            bloom_f32 thumb_visual_size = thumb_size + (hover_t * 0.5f + active_t * 1.5f);
+            bloom_rect thumb_rect = bloom_make_rect(thumb_center_x - thumb_visual_size * 0.5f,
+                                                   (control_rect.y + control_rect.h * 0.5f) - thumb_visual_size * 0.5f,
+                                                   thumb_visual_size, thumb_visual_size);
+            
             if (hover_t > 0.001f || active_t > 0.001f)
             {
+                bloom_f32 glow_r = thumb_visual_size * 0.5f + s->touch_padding * 0.55f;
                 bloom_draw_circle_filled(&ctx->draw_list,
                     bloom_v2(thumb_center_x, control_rect.y + control_rect.h * 0.5f),
-                    thumb_visual_r + s->touch_padding * 0.55f,
+                    glow_r,
                     bloom_scale_alpha(s->input_cursor, 0.08f + hover_t * 0.06f + active_t * 0.08f),
                     s->circle_segments + 12);
             }
 
-            bloom_draw_circle_filled(&ctx->draw_list,
-                bloom_v2(thumb_center_x, control_rect.y + control_rect.h * 0.5f),
-                thumb_visual_r + 1.5f,
-                s->window_bg,
-                s->circle_segments + 8);
-            bloom_draw_soft_circle(ctx,
-                bloom_v2(thumb_center_x, control_rect.y + control_rect.h * 0.5f),
-                thumb_visual_r,
-                fill_color);
+            bloom_draw_rect_rounded(&ctx->draw_list, thumb_rect, s->window_bg, s->grab_rounding);
+            bloom_draw_rect_rounded(&ctx->draw_list, 
+                                   bloom_make_rect(thumb_rect.x + 1.5f, thumb_rect.y + 1.5f, thumb_rect.w - 3.0f, thumb_rect.h - 3.0f),
+                                   fill_color, s->grab_rounding);
         }
     }
 
@@ -290,7 +319,7 @@ static bloom_bool bloom_slider_vertical_internal(const char *label, bloom_f32 *v
     bloom_f32 label_gap;
     bloom_f32 line_h;
     bloom_f32 track_w;
-    bloom_f32 thumb_r;
+    bloom_f32 thumb_size;
     bloom_rect slider_rect;
     bloom_rect hit_rect;
     bloom_bool hovered;
@@ -337,7 +366,7 @@ static bloom_bool bloom_slider_vertical_internal(const char *label, bloom_f32 *v
     {
         track_w = 18.0f;
     }
-    thumb_r = line_h * 0.40f;
+    thumb_size = line_h * 0.85f;
     value_line_h = bloom_scaled_line_height(ctx, s->font_size * 0.85f);
     id = bloom_get_id(label);
     range = max_val - min_val;
@@ -433,11 +462,11 @@ static bloom_bool bloom_slider_vertical_internal(const char *label, bloom_f32 *v
         ? bloom_color_mix(s->input_border, s->input_cursor, 0.38f)
         : bloom_scale_alpha(s->input_border, 0.72f);
 
-    bloom_draw_rect_rounded(&ctx->draw_list, slider_rect, track_bg, s->slider_rounding + 3.0f);
+    bloom_draw_rect_rounded(&ctx->draw_list, slider_rect, track_bg, s->slider_rounding);
     bloom_draw_rect_rounded_border(&ctx->draw_list,
                                    slider_rect,
                                    track_border,
-                                   s->slider_rounding + 3.0f,
+                                   s->slider_rounding,
                                    1.0f);
     fill_color = bloom_color_mix(s->slider_grab, s->slider_grab_active, active_t);
     thumb_center_y = slider_rect.y + slider_rect.h - display_t * slider_rect.h;
@@ -449,24 +478,27 @@ static bloom_bool bloom_slider_vertical_internal(const char *label, bloom_f32 *v
                             slider_rect.w,
                             slider_rect.h * display_t),
             fill_color,
-            s->slider_rounding + 3.0f);
+            s->slider_rounding);
     }
 
     track_x = slider_rect.x + slider_rect.w * 0.5f;
-    if (hover_t > 0.001f || active_t > 0.001f)
     {
-        bloom_draw_circle_filled(&ctx->draw_list,
-            bloom_v2(track_x, thumb_center_y),
-            thumb_r + s->touch_padding * 0.55f,
-            bloom_scale_alpha(s->input_cursor, 0.08f + hover_t * 0.06f + active_t * 0.08f),
-            s->circle_segments + 12);
+        bloom_f32 ts = thumb_size + (hover_t * 0.5f + active_t * 1.5f);
+        bloom_rect thumb_rect = bloom_make_rect(track_x - ts * 0.5f, thumb_center_y - ts * 0.5f, ts, ts);
+
+        if (hover_t > 0.001f || active_t > 0.001f)
+        {
+            bloom_draw_circle_filled(&ctx->draw_list,
+                bloom_v2(track_x, thumb_center_y),
+                ts * 0.5f + s->touch_padding * 0.55f,
+                bloom_scale_alpha(s->input_cursor, 0.08f + hover_t * 0.06f + active_t * 0.08f),
+                s->circle_segments + 12);
+        }
+        bloom_draw_rect_rounded(&ctx->draw_list, thumb_rect, s->window_bg, s->grab_rounding);
+        bloom_draw_rect_rounded(&ctx->draw_list, 
+                                bloom_make_rect(thumb_rect.x + 1.5f, thumb_rect.y + 1.5f, thumb_rect.w - 3.0f, thumb_rect.h - 3.0f),
+                                fill_color, s->grab_rounding);
     }
-    bloom_draw_circle_filled(&ctx->draw_list,
-        bloom_v2(track_x, thumb_center_y),
-        thumb_r + 1.5f,
-        s->window_bg,
-        s->circle_segments + 8);
-    bloom_draw_soft_circle(ctx, bloom_v2(track_x, thumb_center_y), thumb_r + hover_t * 0.4f, fill_color);
 
     if (integer_mode)
     {
@@ -481,8 +513,8 @@ static bloom_bool bloom_slider_vertical_internal(const char *label, bloom_f32 *v
                                       slider_rect.y + slider_rect.h + s->label_gap - 2.0f,
                                       value_w + 18.0f,
                                       value_line_h + 8.0f);
-    bloom_draw_rect_rounded(&ctx->draw_list, value_chip_rect, chip_bg, value_chip_rect.h * 0.5f);
-    bloom_draw_rect_rounded_border(&ctx->draw_list, value_chip_rect, chip_border, value_chip_rect.h * 0.5f, 1.0f);
+    bloom_draw_rect_rounded(&ctx->draw_list, value_chip_rect, chip_bg, s->grab_rounding);
+    bloom_draw_rect_rounded_border(&ctx->draw_list, value_chip_rect, chip_border, s->grab_rounding, 1.0f);
     bloom_draw_text(&ctx->draw_list,
         bloom_v2(value_chip_rect.x + (value_chip_rect.w - value_w) * 0.5f,
                  bloom_centered_text_y(ctx, value_chip_rect.y, value_chip_rect.h, s->font_size * 0.85f)),

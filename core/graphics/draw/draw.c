@@ -14,11 +14,16 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define BLOOM_ELEM_SDF_RECT   0
-#define BLOOM_ELEM_MSDF_TEXT  1
-#define BLOOM_ELEM_PLAIN      2
-#define BLOOM_ELEM_SDF_BORDER 3
-#define BLOOM_ELEM_SDF_LINE   4
+#define BLOOM_ELEM_SDF_RECT         0
+#define BLOOM_ELEM_MSDF_TEXT        1
+#define BLOOM_ELEM_PLAIN            2
+#define BLOOM_ELEM_SDF_BORDER       3
+#define BLOOM_ELEM_SDF_LINE         4
+#define BLOOM_ELEM_SDF_TRIANGLE     5
+#define BLOOM_ELEM_SDF_CHECKERBOARD 6
+#define BLOOM_ELEM_SDF_COLOR_PICKER_SQ 7
+#define BLOOM_ELEM_SDF_HUE_BAR 8
+#define BLOOM_ELEM_SDF_ALPHA_BAR 9
 
 void bloom_draw_list_init(bloom_draw_list *dl, bloom_vertex *verts, bloom_u32 vert_cap,
                           bloom_draw_idx *idxs, bloom_u32 idx_cap,
@@ -396,6 +401,94 @@ void bloom_draw_rect_rounded_border(bloom_draw_list *dl, bloom_rect rect, bloom_
     }
 }
 
+void bloom_draw_rect_multi_color(bloom_draw_list *dl, bloom_rect rect, bloom_color tl, bloom_color tr, bloom_color br, bloom_color bl)
+{
+    bloom_u32 base;
+
+    if (!dl || rect.w <= 0.0f || rect.h <= 0.0f)
+    {
+        return;
+    }
+
+    if (!bloom_draw_reserve(dl, 4, 6))
+    {
+        return;
+    }
+
+    base = dl->vertex_count;
+
+    dl->vertices[dl->vertex_count++] = bloom_make_plain_vertex(bloom_v2(rect.x, rect.y), bloom_color_to_u32(tl));
+    dl->vertices[dl->vertex_count++] = bloom_make_plain_vertex(bloom_v2(rect.x + rect.w, rect.y), bloom_color_to_u32(tr));
+    dl->vertices[dl->vertex_count++] = bloom_make_plain_vertex(bloom_v2(rect.x + rect.w, rect.y + rect.h), bloom_color_to_u32(br));
+    dl->vertices[dl->vertex_count++] = bloom_make_plain_vertex(bloom_v2(rect.x, rect.y + rect.h), bloom_color_to_u32(bl));
+
+    dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 0);
+    dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 1);
+    dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 2);
+    dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 0);
+    dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 2);
+    dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 3);
+
+    bloom_draw_add_cmd(dl, 6);
+}
+
+void bloom_draw_color_picker_square(bloom_draw_list *dl, bloom_rect rect, bloom_color hue, bloom_corner_radii radii)
+{
+    bloom_corner_radii nr;
+    bloom_vec4 v_radii;
+
+    if (!dl || rect.w <= 0.0f || rect.h <= 0.0f)
+    {
+        return;
+    }
+
+    nr = bloom_draw_normalize_corner_radii(rect, radii);
+    v_radii.x = nr.top_left;
+    v_radii.y = nr.top_right;
+    v_radii.z = nr.bottom_right;
+    v_radii.w = nr.bottom_left;
+
+    bloom_draw_sdf_quad(dl, rect, bloom_color_to_u32(hue), v_radii, 0.0f, BLOOM_ELEM_SDF_COLOR_PICKER_SQ);
+}
+
+void bloom_draw_hue_bar(bloom_draw_list *dl, bloom_rect rect, bloom_corner_radii radii)
+{
+    bloom_corner_radii nr;
+    bloom_vec4 v_radii;
+
+    if (!dl || rect.w <= 0.0f || rect.h <= 0.0f)
+    {
+        return;
+    }
+
+    nr = bloom_draw_normalize_corner_radii(rect, radii);
+    v_radii.x = nr.top_left;
+    v_radii.y = nr.top_right;
+    v_radii.z = nr.bottom_right;
+    v_radii.w = nr.bottom_left;
+
+    bloom_draw_sdf_quad(dl, rect, 0xFFFFFFFF, v_radii, 0.0f, BLOOM_ELEM_SDF_HUE_BAR);
+}
+
+void bloom_draw_alpha_bar(bloom_draw_list *dl, bloom_rect rect, bloom_color col, bloom_corner_radii radii)
+{
+    bloom_corner_radii nr;
+    bloom_vec4 v_radii;
+
+    if (!dl || rect.w <= 0.0f || rect.h <= 0.0f)
+    {
+        return;
+    }
+
+    nr = bloom_draw_normalize_corner_radii(rect, radii);
+    v_radii.x = nr.top_left;
+    v_radii.y = nr.top_right;
+    v_radii.z = nr.bottom_right;
+    v_radii.w = nr.bottom_left;
+
+    bloom_draw_sdf_quad(dl, rect, bloom_color_to_u32(col), v_radii, 0.0f, BLOOM_ELEM_SDF_ALPHA_BAR);
+}
+
 void bloom_draw_rect_custom(bloom_draw_list *dl, bloom_rect rect, bloom_color fill_color,
                             bloom_color border_color, bloom_f32 border_thickness,
                             bloom_corner_radii radii)
@@ -446,12 +539,39 @@ void bloom_draw_rect_custom(bloom_draw_list *dl, bloom_rect rect, bloom_color fi
     }
 }
 
+void bloom_draw_checkerboard(bloom_draw_list *dl, bloom_rect rect, bloom_f32 cell_size, bloom_color col, bloom_corner_radii radii)
+{
+    bloom_corner_radii nr;
+    bloom_vec4 v_radii;
+
+    if (!dl || rect.w <= 0.0f || rect.h <= 0.0f || col.a == 0)
+    {
+        return;
+    }
+
+    nr = bloom_draw_normalize_corner_radii(rect, radii);
+    v_radii.x = nr.top_left;
+    v_radii.y = nr.top_right;
+    v_radii.z = nr.bottom_right;
+    v_radii.w = nr.bottom_left;
+
+    bloom_draw_sdf_quad(dl, rect, bloom_color_to_u32(col), v_radii, cell_size, BLOOM_ELEM_SDF_CHECKERBOARD);
+}
+
 void bloom_draw_triangle(bloom_draw_list *dl, bloom_vec2 a, bloom_vec2 b, bloom_vec2 c, bloom_color col)
 {
     bloom_u32 base;
     bloom_u32 cv;
+    bloom_f32 x0, y0, x1, y1;
+    bloom_f32 pad = 1.5f;
+    bloom_vec4 zero_r = {0,0,0,0};
 
-    if (!bloom_draw_reserve(dl, 3, 3))
+    if (!dl || col.a == 0)
+    {
+        return;
+    }
+
+    if (!bloom_draw_reserve(dl, 4, 6))
     {
         return;
     }
@@ -459,15 +579,28 @@ void bloom_draw_triangle(bloom_draw_list *dl, bloom_vec2 a, bloom_vec2 b, bloom_
     base = dl->vertex_count;
     cv = bloom_color_to_u32(col);
 
-    dl->vertices[dl->vertex_count++] = bloom_make_plain_vertex(a, cv);
-    dl->vertices[dl->vertex_count++] = bloom_make_plain_vertex(b, cv);
-    dl->vertices[dl->vertex_count++] = bloom_make_plain_vertex(c, cv);
+    x0 = a.x; if (b.x < x0) x0 = b.x; if (c.x < x0) x0 = c.x;
+    y0 = a.y; if (b.y < y0) y0 = b.y; if (c.y < y0) y0 = c.y;
+    x1 = a.x; if (b.x > x1) x1 = b.x; if (c.x > x1) x1 = c.x;
+    y1 = a.y; if (b.y > y1) y1 = b.y; if (c.y > y1) y1 = c.y;
+
+    dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(
+        bloom_v2(x0 - pad, y0 - pad), a, b, c, cv, zero_r, 0.0f, BLOOM_ELEM_SDF_TRIANGLE);
+    dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(
+        bloom_v2(x1 + pad, y0 - pad), a, b, c, cv, zero_r, 0.0f, BLOOM_ELEM_SDF_TRIANGLE);
+    dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(
+        bloom_v2(x1 + pad, y1 + pad), a, b, c, cv, zero_r, 0.0f, BLOOM_ELEM_SDF_TRIANGLE);
+    dl->vertices[dl->vertex_count++] = bloom_make_sdf_vertex(
+        bloom_v2(x0 - pad, y1 + pad), a, b, c, cv, zero_r, 0.0f, BLOOM_ELEM_SDF_TRIANGLE);
 
     dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 0);
     dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 1);
     dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 2);
+    dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 0);
+    dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 2);
+    dl->indices[dl->index_count++] = (bloom_draw_idx)(base + 3);
 
-    bloom_draw_add_cmd(dl, 3);
+    bloom_draw_add_cmd(dl, 6);
 }
 
 void bloom_draw_line(bloom_draw_list *dl, bloom_vec2 a, bloom_vec2 b, bloom_color col, bloom_f32 thickness)

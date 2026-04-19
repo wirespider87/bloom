@@ -129,11 +129,8 @@ bloom_bool bloom_multi_select_begin_args(const char *label, const char *preview,
 void bloom_multi_select_end(void);
 bloom_bool bloom_multi_select_item(const char *label, bloom_bool selected);
 
-bloom_bool bloom_color_edit3(const char *label, bloom_f32 col[3]);
 bloom_bool bloom_color_edit4(const char *label, bloom_f32 col[4]);
-bloom_bool bloom_color_edit_rgb(const char *label, bloom_f32 col[3], bloom_u32 flags);
 bloom_bool bloom_color_edit_rgba(const char *label, bloom_f32 col[4], bloom_u32 flags);
-bloom_bool bloom_color_pick_rgb(const char *label, bloom_f32 col[3], bloom_u32 flags);
 bloom_bool bloom_color_pick_rgba(const char *label, bloom_f32 col[4], bloom_u32 flags);
 bloom_bool bloom_color_swatch(const char *label, const bloom_f32 col[4], bloom_f32 w, bloom_f32 h);
 

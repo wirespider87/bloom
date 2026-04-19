@@ -86,12 +86,12 @@ void bloom_table_next_row(void)
 
     bloom_color row_bg = (ctx->table_row_index % 2 == 0)
         ? ctx->style.table_row_bg : ctx->style.table_row_bg_alt;
-    bloom_draw_rect_filled(&ctx->draw_list,
+    bloom_draw_rect_rounded(&ctx->draw_list,
         bloom_make_rect(ctx->current_window->content_rect.x + ctx->style.window_padding,
                        ctx->table_row_y,
                        ctx->current_window->layout.available_width,
                        bloom_table_row_height(ctx)),
-        row_bg);
+        row_bg, ctx->style.table_rounding);
 
     ctx->current_window->layout.cursor.x =
         ctx->current_window->content_rect.x + ctx->style.window_padding + 12.0f;
@@ -113,9 +113,9 @@ void bloom_table_header(const char *label)
         col_w = ctx->table_column_widths[ctx->table_current_column];
     }
 
-    bloom_draw_rect_filled(&ctx->draw_list,
+    bloom_draw_rect_rounded(&ctx->draw_list,
         bloom_make_rect(pos.x, pos.y, col_w, bloom_table_row_height(ctx)),
-        s->table_header_bg);
+        s->table_header_bg, s->table_rounding);
     bloom_draw_label(ctx,
                    bloom_v2(pos.x + 12.0f,
                             bloom_centered_text_y(ctx, pos.y, bloom_table_row_height(ctx), s->font_size)),

@@ -131,9 +131,14 @@ void bloom_draw_rect_filled(bloom_draw_list *dl, bloom_rect rect, bloom_color co
 void bloom_draw_rect(bloom_draw_list *dl, bloom_rect rect, bloom_color col, bloom_f32 thickness);
 void bloom_draw_rect_rounded(bloom_draw_list *dl, bloom_rect rect, bloom_color col, bloom_f32 radius);
 void bloom_draw_rect_rounded_border(bloom_draw_list *dl, bloom_rect rect, bloom_color col, bloom_f32 radius, bloom_f32 thickness);
+void bloom_draw_rect_multi_color(bloom_draw_list *dl, bloom_rect rect, bloom_color tl, bloom_color tr, bloom_color br, bloom_color bl);
+void bloom_draw_color_picker_square(bloom_draw_list *dl, bloom_rect rect, bloom_color hue, bloom_corner_radii radii);
+void bloom_draw_hue_bar(bloom_draw_list *dl, bloom_rect rect, bloom_corner_radii radii);
+void bloom_draw_alpha_bar(bloom_draw_list *dl, bloom_rect rect, bloom_color col, bloom_corner_radii radii);
 void bloom_draw_rect_custom(bloom_draw_list *dl, bloom_rect rect, bloom_color fill_color,
                             bloom_color border_color, bloom_f32 border_thickness,
                             bloom_corner_radii radii);
+void bloom_draw_checkerboard(bloom_draw_list *dl, bloom_rect rect, bloom_f32 cell_size, bloom_color col, bloom_corner_radii radii);
 void bloom_draw_triangle(bloom_draw_list *dl, bloom_vec2 a, bloom_vec2 b, bloom_vec2 c, bloom_color col);
 void bloom_draw_line(bloom_draw_list *dl, bloom_vec2 a, bloom_vec2 b, bloom_color col, bloom_f32 thickness);
 void bloom_draw_circle_filled(bloom_draw_list *dl, bloom_vec2 center, bloom_f32 radius, bloom_color col, int segments);

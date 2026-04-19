@@ -73,10 +73,10 @@ void bloom_tooltip_flush_deferred(void)
 
     bloom_draw_rect_rounded(dl,
         bloom_make_rect(x - pad, y - pad, tw, th),
-        s->tooltip_bg, 4.0f);
+        s->tooltip_bg, s->tooltip_rounding);
     bloom_draw_rect_rounded_border(dl,
         bloom_make_rect(x - pad, y - pad, tw, th),
-        s->tooltip_border, 4.0f, 1.0f);
+        s->tooltip_border, s->tooltip_rounding, 1.0f);
     bloom_draw_text(dl, bloom_v2(x, y), g_tooltip_text,
                     s->tooltip_text, s->font_size, ctx->default_font.texture_id);
 

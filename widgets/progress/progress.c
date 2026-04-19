@@ -19,12 +19,12 @@ void bloom_progress_bar(bloom_f32 fraction, bloom_f32 w, bloom_f32 h)
     if (fraction > 1) fraction = 1;
 
     bloom_draw_rect_rounded(&ctx->draw_list, bloom_make_rect(pos.x, pos.y, w, h),
-                           s->slider_bg, 999.0f);
+                           s->slider_bg, s->frame_rounding);
     if (fraction > 0)
     {
         bloom_draw_rect_rounded(&ctx->draw_list,
             bloom_make_rect(pos.x, pos.y, w * fraction, h),
-            s->slider_grab, 999.0f);
+            s->slider_grab, s->frame_rounding);
 
         if (bloom_window_animations_enabled(ctx) && w * fraction > h * 0.8f)
         {
@@ -44,7 +44,7 @@ void bloom_progress_bar(bloom_f32 fraction, bloom_f32 w, bloom_f32 h)
                 bloom_draw_rect_rounded(&ctx->draw_list,
                     bloom_make_rect(sheen_x, pos.y, sheen_w, h),
                     bloom_scale_alpha(s->text_default, 0.12f),
-                    999.0f);
+                    s->frame_rounding);
             }
         }
     }

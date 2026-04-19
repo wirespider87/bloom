@@ -297,15 +297,21 @@ static void bloom_action_split_draw_control(bloom_context *ctx, const char *labe
     bloom_draw_rect_custom(&ctx->draw_list,
                            primary_rect,
                            primary_bg,
-                           border,
-                           1.0f,
+                           bloom_rgba(0,0,0,0),
+                           0.0f,
                            bloom_make_corner_radii(s->button_rounding, 0.0f, 0.0f, s->button_rounding));
     bloom_draw_rect_custom(&ctx->draw_list,
                            arrow_rect,
                            arrow_bg,
-                           border,
-                           1.0f,
+                           bloom_rgba(0,0,0,0),
+                           0.0f,
                            bloom_make_corner_radii(0.0f, s->button_rounding, s->button_rounding, 0.0f));
+    bloom_draw_rect_rounded_border(&ctx->draw_list, control_rect, border, s->button_rounding, 1.0f);
+    
+    bloom_draw_line(&ctx->draw_list, 
+                    bloom_v2(arrow_rect.x, arrow_rect.y + 1.0f),
+                    bloom_v2(arrow_rect.x, arrow_rect.y + arrow_rect.h - 1.0f),
+                    border, 1.0f);
 
     text_w = bloom_label_width(ctx, label, s->font_size);
     bloom_draw_label(ctx,
@@ -486,12 +492,12 @@ static bloom_bool bloom_combo_activate_popup(bloom_context *ctx, const char *lab
                                 bloom_make_rect(g_combo_popup.popup_rect.x, g_combo_popup.popup_rect.y + 2.0f,
                                                 g_combo_popup.popup_rect.w, g_combo_popup.popup_rect.h),
                                 shadow_col,
-                                s->input_rounding + 2.0f);
+                                s->popup_rounding);
     }
 
-    bloom_draw_rect_rounded(&ctx->draw_list, g_combo_popup.popup_rect, popup_bg, s->input_rounding + 2.0f);
+    bloom_draw_rect_rounded(&ctx->draw_list, g_combo_popup.popup_rect, popup_bg, s->popup_rounding);
     bloom_draw_rect_rounded_border(&ctx->draw_list, g_combo_popup.popup_rect,
-                                   s->dropdown_border, s->input_rounding + 2.0f, 1.0f);
+                                   s->dropdown_border, s->popup_rounding, 1.0f);
     bloom_draw_push_clip(&ctx->draw_list, g_combo_popup.viewport_rect);
     g_combo_popup.clip_active = BLOOM_TRUE;
     return BLOOM_TRUE;
@@ -500,6 +506,7 @@ static bloom_bool bloom_combo_activate_popup(bloom_context *ctx, const char *lab
 static void bloom_combo_prepare_search_field(void)
 {
     bloom_context *ctx = bloom_get_context();
+    bloom_style *s;
     bloom_window *win;
     bloom_layout saved_layout;
     bloom_f32 consumed_h;
@@ -510,6 +517,7 @@ static void bloom_combo_prepare_search_field(void)
         return;
     }
 
+    s = &ctx->style;
     win = ctx->current_window;
     saved_layout = win->layout;
     win->layout.cursor = bloom_v2(g_combo_popup.viewport_rect.x, g_combo_popup.viewport_rect.y);
@@ -546,7 +554,7 @@ static void bloom_combo_prepare_search_field(void)
         bloom_pop_id();
     }
 
-    consumed_h = g_combo_popup.item_height;
+    consumed_h = g_combo_popup.item_height + s->item_spacing;
 
     win->layout = saved_layout;
     g_combo_popup.search_height = consumed_h;
@@ -811,7 +819,7 @@ static void bloom_combo_end_internal(void)
 
         bloom_draw_rect_rounded(&ctx->draw_list, grab_rect,
                                 grab_hovered || ctx->active_id == scrollbar_id ? s->scrollbar_grab_hovered : s->scrollbar_grab,
-                                s->scrollbar_rounding);
+                                s->grab_rounding);
     }
 
     bloom_popup_end_deferred_draw(ctx);
@@ -865,6 +873,7 @@ static bloom_bool bloom_combo_item_internal(const char *label, bloom_bool select
     bloom_id item_id;
     bloom_color bg;
     bloom_vec2 indicator_center;
+    bloom_corner_radii radii = {0, 0, 0, 0};
 
     if (!ctx || !g_combo_popup.open || g_combo_popup.close_requested)
     {
@@ -919,8 +928,23 @@ static bloom_bool bloom_combo_item_internal(const char *label, bloom_bool select
         bg = bloom_apply_state_layer(bg, s->input_cursor, 0.22f);
     }
 
+    {
+        bloom_f32 r = s->popup_rounding - 8.0f;
+        if (r < 0.0f) r = 0.0f;
+        if (item_index == 0)
+        {
+            radii.top_left = r;
+            radii.top_right = r;
+        }
+        if (item_index == g_combo_popup.last_item_count - 1)
+        {
+            radii.bottom_left = r;
+            radii.bottom_right = r;
+        }
+    }
 
-    bloom_draw_rect_filled(&ctx->draw_list, item_rect, bg);
+    bloom_draw_rect_custom(&ctx->draw_list, item_rect, bg, bloom_rgba(0,0,0,0), 0.0f, radii);
+    
     bloom_draw_label(ctx,
                      bloom_v2(item_rect.x + s->field_padding_x,
                               bloom_centered_text_y(ctx, item_rect.y, g_combo_popup.item_height, s->font_size)),
@@ -937,17 +961,17 @@ static bloom_bool bloom_combo_item_internal(const char *label, bloom_bool select
             bloom_draw_rect_rounded(&ctx->draw_list,
                                     bloom_make_rect(indicator_center.x - 7.0f, indicator_center.y - 7.0f, 14.0f, 14.0f),
                                     s->checkbox_mark,
-                                    4.0f);
+                                    s->checkbox_rounding);
             bloom_draw_line(&ctx->draw_list,
-                            bloom_v2(indicator_center.x - 3.0f, indicator_center.y + 0.5f),
-                            bloom_v2(indicator_center.x - 0.5f, indicator_center.y + 3.5f),
+                            bloom_v2(indicator_center.x - 4.0f, indicator_center.y),
+                            bloom_v2(indicator_center.x + 4.0f, indicator_center.y),
                             s->window_bg,
-                            1.8f);
+                            1.6f);
             bloom_draw_line(&ctx->draw_list,
-                            bloom_v2(indicator_center.x - 0.5f, indicator_center.y + 3.5f),
-                            bloom_v2(indicator_center.x + 4.5f, indicator_center.y - 3.0f),
+                            bloom_v2(indicator_center.x, indicator_center.y - 4.0f),
+                            bloom_v2(indicator_center.x, indicator_center.y + 4.0f),
                             s->window_bg,
-                            1.8f);
+                            1.6f);
         }
         else
         {
@@ -959,7 +983,7 @@ static bloom_bool bloom_combo_item_internal(const char *label, bloom_bool select
         bloom_draw_rect_rounded_border(&ctx->draw_list,
                                        bloom_make_rect(indicator_center.x - 7.0f, indicator_center.y - 7.0f, 14.0f, 14.0f),
                                        s->dropdown_border,
-                                       4.0f,
+                                       s->checkbox_rounding,
                                        1.0f);
     }
 

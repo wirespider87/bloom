@@ -44,6 +44,7 @@ void bloom_draw_soft_line(bloom_context *ctx, bloom_vec2 a, bloom_vec2 b, bloom_
 bloom_toggle_args bloom_resolve_toggle_args(const bloom_toggle_args *args);
 bloom_slider_args bloom_resolve_slider_args(const bloom_slider_args *args, bloom_bool show_grab);
 bloom_bool bloom_widget_released_inside(bloom_context *ctx, bloom_id id, bloom_bool hovered);
+bloom_bool bloom_widget_double_clicked(bloom_context *ctx, bloom_id id, bloom_bool hovered);
 
 void bloom_popup_begin_deferred_draw(bloom_context *ctx);
 void bloom_popup_end_deferred_draw(bloom_context *ctx);

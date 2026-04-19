@@ -68,18 +68,18 @@ bloom_bool bloom_checkbox(const char *label, bloom_bool *value)
                             total_w + s->touch_padding * 2.0f,
                             total_h),
             bloom_apply_state_layer(s->window_bg, s->input_cursor, 0.04f + hover_t * 0.05f + press_t * 0.04f),
-            18.0f);
+            s->checkbox_rounding + 12.0f);
     }
 
     box_bg = checked_t > 0.0f ? bloom_color_mix(s->input_bg, s->input_cursor, checked_t) : s->input_bg;
     box_border = checked_t > 0.0f ? bloom_color_mix(s->input_border, s->input_cursor, checked_t)
                                   : bloom_color_mix(s->input_border, s->input_cursor, hover_t * 0.32f);
 
-    bloom_draw_rect_rounded(&ctx->draw_list, box_rect, box_bg, 6.0f);
+    bloom_draw_rect_rounded(&ctx->draw_list, box_rect, box_bg, s->checkbox_rounding);
     bloom_draw_rect_rounded_border(&ctx->draw_list,
                                    box_rect,
                                    box_border,
-                                   6.0f,
+                                   s->checkbox_rounding,
                                    checked_t > 0.0f || hovered ? 1.6f : 1.2f);
 
     if (check_draw_t > 0.001f)
@@ -199,7 +199,7 @@ bloom_bool bloom_toggle_ex(const char *label, bloom_bool *value, const bloom_tog
                             total_w + s->touch_padding * 2.0f,
                             total_h),
             bloom_apply_state_layer(s->window_bg, s->input_cursor, 0.03f + hover_t * 0.05f + press_t * 0.04f),
-            18.0f);
+            s->checkbox_rounding + 12.0f);
     }
 
     track_bg = bloom_color_mix(s->input_bg, s->input_cursor, toggle_pos_t * 0.62f);
@@ -307,7 +307,7 @@ bloom_bool bloom_radio_button(const char *label, bloom_bool active)
                             total_w + s->touch_padding * 2.0f,
                             total_h),
                 bloom_apply_state_layer(s->window_bg, s->input_cursor, 0.03f + hover_t * 0.05f + press_t * 0.04f),
-            18.0f);
+            s->checkbox_rounding + 12.0f);
     }
 
     ring_color = bloom_color_mix(s->checkbox_border, s->checkbox_mark,

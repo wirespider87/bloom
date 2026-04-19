@@ -12,6 +12,7 @@ typedef struct bloom_number_field_state
 {
     bloom_id id;
     bloom_bool active;
+    bloom_bool initialized;
     char buffer[64];
 } bloom_number_field_state;
 
@@ -245,25 +246,32 @@ bloom_bool bloom_numeric_input(const char *label, void *value_ptr, bloom_value_k
     input_id = bloom_get_id(label);
     state = bloom_find_number_state(input_id);
     focused = (ctx->focus_id == input_id);
-    current_value = bloom_value_from_ptr(value_ptr, kind);
 
-    if (!focused || state->buffer[0] == '\0')
+    if (!focused)
     {
+        current_value = bloom_value_from_ptr(value_ptr, kind);
         bloom_format_numeric_value(state->buffer, (bloom_u32)sizeof(state->buffer), current_value, kind);
+        state->initialized = BLOOM_FALSE;
+    }
+    else if (!state->initialized)
+    {
+        current_value = bloom_value_from_ptr(value_ptr, kind);
+        bloom_format_numeric_value(state->buffer, (bloom_u32)sizeof(state->buffer), current_value, kind);
+        state->initialized = BLOOM_TRUE;
     }
 
     if (bloom_text_input(label, state->buffer, (bloom_u32)sizeof(state->buffer)))
+    {
+        
+    }
+
+    if (state->initialized && ctx->focus_id != input_id)
     {
         if (bloom_parse_numeric_value(state->buffer, kind, &edited_value))
         {
             changed |= bloom_value_store(value_ptr, kind, edited_value);
         }
-    }
-
-    if (ctx->focus_id != input_id)
-    {
-        current_value = bloom_value_from_ptr(value_ptr, kind);
-        bloom_format_numeric_value(state->buffer, (bloom_u32)sizeof(state->buffer), current_value, kind);
+        state->initialized = BLOOM_FALSE;
     }
 
     return changed;
@@ -506,23 +514,16 @@ static bloom_bool bloom_value_scrub_internal(const char *label, void *value_ptr,
         s->font_size,
         ctx->default_font.texture_id);
 
-    handle_x = rect.x + rect.w - s->field_padding_x - 4.0f;
-    handle_y = rect.y + rect.h * 0.5f - 6.0f;
-    for (dot_index = 0; dot_index < 3; ++dot_index)
-    {
-        bloom_draw_circle_filled(&ctx->draw_list,
-                                 bloom_v2(handle_x, handle_y + dot_index * 6.0f),
-                                 1.4f,
-                                 handle_col,
-                                 s->circle_segments);
-    }
-
     if (ctx->active_id == id)
     {
         marker_x = rect.x + s->field_padding_x + value_w + s->item_inner_spacing;
         bloom_draw_rect_filled(&ctx->draw_list,
             bloom_make_rect(marker_x, rect.y + 5.0f, 2.0f, rect.h - 10.0f),
             s->input_cursor);
+    }
+    else
+    {
+        /* draggable field indicator removed */
     }
 
     bloom_advance_layout(total_w, label_h + label_gap + control_h + s->touch_padding);
@@ -611,10 +612,9 @@ bloom_bool bloom_int_span(const char *label, bloom_i32 *min_value, bloom_i32 *ma
     ctx->current_window->layout.available_width = saved_available;
     bloom_pop_id();
 
-    if (*min_value > *max_value)
+    if (changed && *min_value > *max_value)
     {
         *max_value = *min_value;
-        changed = BLOOM_TRUE;
     }
     return changed;
 }
@@ -665,10 +665,9 @@ bloom_bool bloom_float_span(const char *label, bloom_f32 *min_value, bloom_f32 *
     ctx->current_window->layout.available_width = saved_available;
     bloom_pop_id();
 
-    if (*min_value > *max_value)
+    if (changed && *min_value > *max_value)
     {
         *max_value = *min_value;
-        changed = BLOOM_TRUE;
     }
     return changed;
 }

@@ -272,6 +272,11 @@ void bloom_begin_frame(void)
     ctx->skip_depth = 0;
     ctx->frame_count++;
     ctx->time += ctx->delta_time;
+
+    if (ctx->last_click_id != 0 && (ctx->time - ctx->last_click_time) > 0.5)
+    {
+        ctx->last_click_id = 0;
+    }
 }
 
 void bloom_end_frame(void)
@@ -817,9 +822,14 @@ static void bloom_window_draw_title_button(bloom_context *ctx, bloom_draw_list *
                                            bloom_bool held, bloom_bool toggled)
 {
     bloom_bool animations_enabled = !ctx || (window_flags & BLOOM_WINDOW_NO_ANIMATIONS) == 0;
-    bloom_f32 hover_t = animations_enabled ? bloom_anim_toggle(id ^ 0x7711u, hovered || held || toggled, 18.0f)
+    
+    /* ID kind to hopefully prevent bleeds */
+    bloom_id hover_id = id ^ 0x7711u ^ (bloom_id)(kind * 0x123);
+    bloom_id pulse_id = id ^ 0x7713u ^ (bloom_id)(kind * 0x456);
+
+    bloom_f32 hover_t = animations_enabled ? bloom_anim_toggle(hover_id, hovered || held || toggled, 18.0f)
                                            : ((hovered || held || toggled) ? 1.0f : 0.0f);
-    bloom_f32 press_t = animations_enabled ? bloom_anim_pulse(id ^ 0x7713u, held, 42.0f, 18.0f)
+    bloom_f32 press_t = animations_enabled ? bloom_anim_pulse(pulse_id, held, 42.0f, 18.0f)
                                            : (held ? 1.0f : 0.0f);
     bloom_color bg = bloom_context_color_mix(s->input_bg, s->input_cursor, toggled ? 0.16f : 0.03f);
     bloom_color border = bloom_context_color_mix(s->input_border, s->input_cursor, toggled ? 0.70f : hover_t * 0.45f + press_t * 0.15f);
@@ -1139,6 +1149,7 @@ static bloom_bool bloom_begin_internal(const char *name, bloom_i32 flags, bloom_
     {
         bloom_color shadow_col = s->shadow;
         bloom_color transparent = bloom_rgba(0, 0, 0, 0);
+        bloom_f32 r = (flags & BLOOM_WINDOW_CHILD) ? s->child_rounding : s->window_rounding;
         shadow_col.a = (bloom_u8)(s->shadow_alpha * 255);
         if (window_hidden && has_title_bar)
         {
@@ -1152,33 +1163,35 @@ static bloom_bool bloom_begin_internal(const char *name, bloom_i32 flags, bloom_
             bloom_draw_rect_rounded(dl,
                 bloom_make_rect(win->rect.x + s->shadow_offset, win->rect.y + s->shadow_offset,
                                win->rect.w, win->rect.h),
-                shadow_col, s->window_rounding);
+                shadow_col, r);
         }
     }
 
     if (!(flags & BLOOM_WINDOW_NO_BACKGROUND))
     {
         bloom_color transparent = bloom_rgba(0, 0, 0, 0);
+        bloom_f32 r = (flags & BLOOM_WINDOW_CHILD) ? s->child_rounding : s->window_rounding;
         if (window_hidden && has_title_bar)
         {
             bloom_draw_rect_custom(dl, win->rect, s->window_bg, transparent, 0.0f, header_only_radii);
         }
         else
         {
-            bloom_draw_rect_rounded(dl, win->rect, s->window_bg, s->window_rounding);
+            bloom_draw_rect_rounded(dl, win->rect, s->window_bg, r);
         }
     }
 
     if (!(flags & BLOOM_WINDOW_NO_BORDER))
     {
         bloom_color transparent = bloom_rgba(0, 0, 0, 0);
+        bloom_f32 r = (flags & BLOOM_WINDOW_CHILD) ? s->child_rounding : s->window_rounding;
         if (window_hidden && has_title_bar)
         {
             bloom_draw_rect_custom(dl, win->rect, transparent, s->window_border, s->border_width, header_only_radii);
         }
         else
         {
-            bloom_draw_rect_rounded_border(dl, win->rect, s->window_border, s->window_rounding, s->border_width);
+            bloom_draw_rect_rounded_border(dl, win->rect, s->window_border, r, s->border_width);
         }
     }
 
@@ -1790,9 +1803,11 @@ void bloom_separator(void)
         win->layout.type = BLOOM_LAYOUT_VERTICAL;
     }
     bloom_f32 y = win->layout.cursor.y + ctx->style.item_spacing * 0.5f;
+    bloom_f32 x0 = win->layout.cursor.x;
+    bloom_f32 x1 = x0 + win->layout.available_width;
     bloom_draw_line(&ctx->draw_list,
-                    bloom_v2(win->content_rect.x + ctx->style.window_padding, y),
-                    bloom_v2(win->content_rect.x + win->content_rect.w - ctx->style.window_padding, y),
+                    bloom_v2(x0, y),
+                    bloom_v2(x1, y),
                     ctx->style.separator, 1.0f);
     bloom_window_note_content_y(win, y + 1.0f);
     win->layout.cursor.x = win->layout.start.x + win->layout.indent;

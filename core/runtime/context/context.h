@@ -180,6 +180,10 @@ typedef struct bloom_context
     bloom_f32       tooltip_timer;
     bloom_id        tooltip_id;
 
+    bloom_id        last_click_id;
+    bloom_f64       last_click_time;
+    bloom_f64       last_manual_edit_time;
+
     bloom_i32       table_column_count;
     bloom_f32       table_column_widths[BLOOM_MAX_COLUMNS];
     bloom_i32       table_current_column;

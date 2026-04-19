@@ -497,5 +497,24 @@ bloom_bool bloom_widget_released_inside(bloom_context *ctx, bloom_id id, bloom_b
     }
 
     ctx->active_id = 0;
-    return hovered && ctx->input.mouse_released[BLOOM_MOUSE_LEFT];
+    if (hovered && ctx->input.mouse_released[BLOOM_MOUSE_LEFT])
+    {
+        ctx->last_click_id = id;
+        ctx->last_click_time = ctx->time;
+        return BLOOM_TRUE;
+    }
+    return BLOOM_FALSE;
+}
+
+bloom_bool bloom_widget_double_clicked(bloom_context *ctx, bloom_id id, bloom_bool hovered)
+{
+    if (hovered && ctx->input.mouse_pressed[BLOOM_MOUSE_LEFT])
+    {
+        if (ctx->last_click_id == id && (ctx->time - ctx->last_click_time) < 0.5)
+        {
+            ctx->last_click_id = 0; /* reset on click detect */
+            return BLOOM_TRUE;
+        }
+    }
+    return BLOOM_FALSE;
 }

@@ -1134,7 +1134,7 @@ static bloom_bool bloom_text_input_internal(const char *label, char *buf, bloom_
     bloom_draw_text_selection(ctx, input_rect, buf, s->font_size, multiline, state);
     bloom_draw_text_contents(ctx, input_rect, buf, s->input_text, s->font_size, multiline);
 
-    if (focused)
+    if (focused && ctx->active_id == 0)
     {
         bloom_f64 time_since_edit = ctx->time - state->last_edit_time;
         if (time_since_edit < 0.5)

@@ -194,7 +194,7 @@ bloom_bool bloom_button_ghost(const char *id, bloom_f32 w, bloom_f32 h)
     pos = ctx->current_window->layout.cursor;
     if (w <= 0.0f)
     {
-        w = bloom_scaled_line_height(ctx, s->font_size) * 1.4f;
+        w = bloom_scaled_line_height(ctx, s->font_size) * 3.5f;
     }
     if (h <= 0.0f)
     {
@@ -339,15 +339,15 @@ bloom_bool bloom_choice_strip(const char *label, const char *const *items, bloom
     control_h = bloom_scaled_line_height(ctx, s->font_size) + s->control_padding_y * 2.0f;
     total_w = ctx->current_window->layout.available_width;
     item_w = total_w / (bloom_f32)item_count;
-    segment_padding = 2.0f;
-    active_rounding = s->button_rounding - 6.0f;
+    segment_padding = 3.5f;
+    active_rounding = s->button_rounding - segment_padding;
     if (item_w < 32.0f)
     {
         item_w = 32.0f;
     }
-    if (active_rounding < 8.0f)
+    if (active_rounding < 0.0f)
     {
-        active_rounding = 8.0f;
+        active_rounding = 0.0f;
     }
 
     container_rect = bloom_make_rect(pos.x,
@@ -425,9 +425,9 @@ bloom_bool bloom_choice_strip(const char *label, const char *const *items, bloom
         if (i > 0)
         {
             bloom_draw_line(&ctx->draw_list,
-                bloom_v2(rect.x, rect.y + 4.0f),
-                bloom_v2(rect.x, rect.y + rect.h - 4.0f),
-                bloom_scale_alpha(s->input_border, 0.7f),
+                bloom_v2(rect.x, rect.y + 6.0f),
+                bloom_v2(rect.x, rect.y + rect.h - 6.0f),
+                bloom_scale_alpha(s->input_border, 0.45f),
                 1.0f);
         }
 

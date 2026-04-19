@@ -6,21 +6,23 @@
 
 void bloom_style_scale(bloom_style *style, bloom_f32 scale)
 {
-    if (!style)
-    {
-        return;
-    }
-
-    if (scale <= 0.0f || scale == 1.0f)
-    {
-        return;
-    }
+    if (!style) return;
+    if (scale <= 0.0f || scale == 1.0f) return;
 
     style->window_rounding *= scale;
+    style->child_rounding *= scale;
+    style->popup_rounding *= scale;
     style->button_rounding *= scale;
     style->slider_rounding *= scale;
     style->input_rounding *= scale;
     style->scrollbar_rounding *= scale;
+    style->grab_rounding *= scale;
+    style->frame_rounding *= scale;
+    style->tab_rounding *= scale;
+    style->tooltip_rounding *= scale;
+    style->checkbox_rounding *= scale;
+    style->table_rounding *= scale;
+    style->checkerboard_rounding *= scale;
 
     style->window_padding *= scale;
     style->item_spacing *= scale;
@@ -29,14 +31,8 @@ void bloom_style_scale(bloom_style *style, bloom_f32 scale)
     style->scrollbar_width *= scale;
     style->scrollbar_inset *= scale;
     style->title_bar_height *= scale;
-    if (style->title_bar_rounding != BLOOM_STYLE_ROUNDING_INHERIT)
-    {
-        style->title_bar_rounding *= scale;
-    }
-    if (style->title_bar_bottom_rounding != BLOOM_STYLE_ROUNDING_INHERIT)
-    {
-        style->title_bar_bottom_rounding *= scale;
-    }
+    if (style->title_bar_rounding != BLOOM_STYLE_ROUNDING_INHERIT) style->title_bar_rounding *= scale;
+    if (style->title_bar_bottom_rounding != BLOOM_STYLE_ROUNDING_INHERIT) style->title_bar_bottom_rounding *= scale;
     style->border_width *= scale;
     style->shadow_offset *= scale;
     style->color_preview_rounding *= scale;
@@ -52,10 +48,7 @@ void bloom_style_scale(bloom_style *style, bloom_f32 scale)
     style->touch_padding *= scale;
 }
 
-void bloom_style_default(bloom_style *style)
-{
-    bloom_style_material_dark(style);
-}
+void bloom_style_default(bloom_style *style) { bloom_style_material_dark(style); }
 
 void bloom_style_material_dark(bloom_style *style)
 {
@@ -108,10 +101,19 @@ void bloom_style_material_dark(bloom_style *style)
     style->table_border       = bloom_rgba(73, 69, 79, 255);
 
     style->window_rounding    = 24.0f;
+    style->child_rounding     = 16.0f;
+    style->popup_rounding     = 18.0f;
     style->button_rounding    = 20.0f;
     style->slider_rounding    = 999.0f;
     style->input_rounding     = 16.0f;
     style->scrollbar_rounding = 999.0f;
+    style->grab_rounding      = 999.0f;
+    style->frame_rounding     = 999.0f;
+    style->tab_rounding       = 14.0f;
+    style->tooltip_rounding   = 12.0f;
+    style->checkbox_rounding  = 6.0f;
+    style->table_rounding     = 12.0f;
+    style->checkerboard_rounding = 8.0f;
 
     style->window_padding     = 24.0f;
     style->item_spacing       = 14.0f;
@@ -195,10 +197,19 @@ void bloom_style_material_light(bloom_style *style)
     style->table_border       = bloom_rgba(202, 196, 208, 255);
 
     style->window_rounding    = 24.0f;
+    style->child_rounding     = 16.0f;
+    style->popup_rounding     = 18.0f;
     style->button_rounding    = 20.0f;
     style->slider_rounding    = 999.0f;
     style->input_rounding     = 16.0f;
     style->scrollbar_rounding = 999.0f;
+    style->grab_rounding      = 999.0f;
+    style->frame_rounding     = 999.0f;
+    style->tab_rounding       = 14.0f;
+    style->tooltip_rounding   = 12.0f;
+    style->checkbox_rounding  = 6.0f;
+    style->table_rounding     = 12.0f;
+    style->checkerboard_rounding = 8.0f;
 
     style->window_padding     = 24.0f;
     style->item_spacing       = 14.0f;
