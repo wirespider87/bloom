@@ -61,10 +61,10 @@ static bloom_color_tab *bloom_color_find_tab(bloom_id id)
 static bloom_color_input_state *bloom_find_color_input_state(bloom_id id)
 {
     for (int i = 0; i < BLOOM_COLOR_INPUT_STATE_CAPACITY; i++) if (g_color_input_states[i].id == id) return &g_color_input_states[i];
-    for (int i = 0; i < BLOOM_COLOR_INPUT_STATE_CAPACITY; i++) if (g_color_input_states[i].id == 0) { 
-        g_color_input_states[i].id = id; 
+    for (int i = 0; i < BLOOM_COLOR_INPUT_STATE_CAPACITY; i++) if (g_color_input_states[i].id == 0) {
+        g_color_input_states[i].id = id;
         g_color_input_states[i].last_tab = -1;
-        return &g_color_input_states[i]; 
+        return &g_color_input_states[i];
     }
     return &g_color_input_states[0];
 }
@@ -151,9 +151,9 @@ static void bloom_rgb_to_hsl(const bloom_f32 rgb[3], bloom_f32 hsl[3])
     hsl[0] = h; hsl[1] = s; hsl[2] = l;
 }
 
-static bloom_f32 bloom_color_lab_pivot(bloom_f32 n) 
-{ 
-    return (n > 0.008856f) ? powf(n, 1.0f/3.0f) : (7.787f * n + 16.0f/116.0f); 
+static bloom_f32 bloom_color_lab_pivot(bloom_f32 n)
+{
+    return (n > 0.008856f) ? powf(n, 1.0f/3.0f) : (7.787f * n + 16.0f/116.0f);
 }
 
 static void bloom_rgb_to_lab(const bloom_f32 rgb[3], bloom_f32 lab[3])
@@ -164,8 +164,8 @@ static void bloom_rgb_to_lab(const bloom_f32 rgb[3], bloom_f32 lab[3])
     bloom_f32 x = (r * 0.4124f + g * 0.3576f + b * 0.1805f) / 0.95047f;
     bloom_f32 y = (r * 0.2126f + g * 0.7152f + b * 0.0722f) / 1.00000f;
     bloom_f32 z = (r * 0.0193f + g * 0.1192f + b * 0.9505f) / 1.08883f;
-    x = bloom_color_lab_pivot(x); 
-    y = bloom_color_lab_pivot(y); 
+    x = bloom_color_lab_pivot(x);
+    y = bloom_color_lab_pivot(y);
     z = bloom_color_lab_pivot(z);
     lab[0] = fmaxf(0, 116.0f * y - 16.0f); lab[1] = 500.0f * (x - y); lab[2] = 200.0f * (y - z);
 }
@@ -192,10 +192,10 @@ static bloom_bool bloom_color_swatch_row(const char *label, const bloom_f32 col[
     if (!ctx || !ctx->current_window) return BLOOM_FALSE;
     bloom_style *s = &ctx->style;
     bloom_vec2 pos = ctx->current_window->layout.cursor;
-    
+
     bloom_f32 swatch_size = bloom_scaled_line_height(ctx, s->font_size);
     if (h <= 0.0f) h = swatch_size + s->touch_padding * 1.6f;
-    
+
     bloom_f32 label_w = bloom_label_width(ctx, label, s->font_size);
     bloom_f32 total_w = swatch_size + (label_w > 0.0f ? (s->item_inner_spacing + label_w) : 0.0f);
     if (w > total_w) total_w = w;
@@ -219,11 +219,11 @@ static bloom_bool bloom_color_swatch_row(const char *label, const bloom_f32 col[
     if (preview.a < 255) bloom_color_draw_checkerboard(ctx, swatch_rect, 6.0f, s->color_preview_rounding);
     bloom_draw_rect_rounded(&ctx->draw_list, swatch_rect, preview, s->color_preview_rounding);
     bloom_draw_rect_rounded_border(&ctx->draw_list, swatch_rect, hovered ? s->input_cursor : s->checkbox_border, s->color_preview_rounding, 1.0f);
-    
+
     if (label_w > 0.0f) {
-        bloom_draw_label(ctx, 
-                         bloom_v2(pos.x + swatch_size + s->item_inner_spacing, 
-                                  bloom_centered_text_y(ctx, pos.y, h, s->font_size)), 
+        bloom_draw_label(ctx,
+                         bloom_v2(pos.x + swatch_size + s->item_inner_spacing,
+                                  bloom_centered_text_y(ctx, pos.y, h, s->font_size)),
                          label, hovered ? s->input_cursor : s->text_default, s->font_size);
     }
 
@@ -293,7 +293,7 @@ static bloom_bool bloom_color_draw_value_field(bloom_context *ctx, bloom_rect re
     bloom_rect text_rect = bloom_make_rect(rect.x + (rect.w - 180)*0.5f, rect.y + (rect.h - 20)*0.5f, 180, 20);
     bloom_bool text_hovered = bloom_widget_hovered(text_rect);
     bloom_id text_id = bloom_get_id("##val_text");
-    
+
     bloom_bool allow_manual = (flags & BLOOM_COLOR_FLAGS_NO_MANUAL_INPUT) == 0;
     if (allow_manual && text_hovered && ctx->input.mouse_pressed[BLOOM_MOUSE_LEFT]) ctx->focus_id = text_id;
 
@@ -361,8 +361,8 @@ static bloom_bool bloom_color_picker_card(const char *label, bloom_f32 col[4], b
 
     bloom_f32 gap_sq_hue = 12;
     bloom_f32 gap_hue_alpha = 10;
-    bloom_f32 gap_alpha_val = 18; 
-    bloom_f32 gap_val_foot = 26; 
+    bloom_f32 gap_alpha_val = 18;
+    bloom_f32 gap_val_foot = 26;
     bloom_f32 foot_h = 20;
 
     bloom_f32 total_h = pad + sq_h + gap_sq_hue + bar_h + (with_alpha ? (gap_hue_alpha + bar_h) : 0) + gap_alpha_val + val_h + gap_val_foot + foot_h + pad;
@@ -388,9 +388,9 @@ static bloom_bool bloom_color_picker_card(const char *label, bloom_f32 col[4], b
     bloom_rect hue_r = bloom_make_rect(pos.x + pad, sq_r.y + sq_r.h + gap_sq_hue, w - pad*2, bar_h);
     if (bloom_widget_hovered(hue_r) && ctx->input.mouse_pressed[BLOOM_MOUSE_LEFT]) ctx->active_id = hue_id;
     if (ctx->active_id == hue_id) {
-        if (ctx->input.mouse_down[BLOOM_MOUSE_LEFT]) { 
-            hsv[0] = bloom_color_clamp01((ctx->input.mouse_pos.x - (hue_r.x + bar_mr))/(hue_r.w - bar_mr*2)); 
-            changed = BLOOM_TRUE; 
+        if (ctx->input.mouse_down[BLOOM_MOUSE_LEFT]) {
+            hsv[0] = bloom_color_clamp01((ctx->input.mouse_pos.x - (hue_r.x + bar_mr))/(hue_r.w - bar_mr*2));
+            changed = BLOOM_TRUE;
         }
         else ctx->active_id = 0;
     }
@@ -402,10 +402,10 @@ static bloom_bool bloom_color_picker_card(const char *label, bloom_f32 col[4], b
         bloom_rect al_r = bloom_make_rect(pos.x + pad, hue_r.y + hue_r.h + gap_hue_alpha, w - pad*2, bar_h);
         if (bloom_widget_hovered(al_r) && ctx->input.mouse_pressed[BLOOM_MOUSE_LEFT]) ctx->active_id = alpha_id;
         if (ctx->active_id == alpha_id) {
-            if (ctx->input.mouse_down[BLOOM_MOUSE_LEFT]) { 
-                hsv[3] = bloom_color_clamp01((ctx->input.mouse_pos.x - (al_r.x + bar_mr))/(al_r.w - bar_mr*2)); 
+            if (ctx->input.mouse_down[BLOOM_MOUSE_LEFT]) {
+                hsv[3] = bloom_color_clamp01((ctx->input.mouse_pos.x - (al_r.x + bar_mr))/(al_r.w - bar_mr*2));
                 col[3] = hsv[3];
-                changed = BLOOM_TRUE; 
+                changed = BLOOM_TRUE;
             }
             else ctx->active_id = 0;
         }
@@ -477,7 +477,7 @@ bloom_bool bloom_color_edit4(const char *label, bloom_f32 col[4]) { return bloom
 bloom_bool bloom_color_edit_rgba(const char *label, bloom_f32 col[4], bloom_u32 flags) { return bloom_color_picker_card(label, col, BLOOM_TRUE, flags, BLOOM_TRUE, BLOOM_TRUE); }
 
 bloom_bool bloom_color_pick_rgba(const char *label, bloom_f32 col[4], bloom_u32 flags) {
-    bloom_context *ctx = bloom_get_context(); bloom_id id = bloom_get_id(label); 
+    bloom_context *ctx = bloom_get_context(); bloom_id id = bloom_get_id(label);
     bloom_color_pick_state_rec *state = bloom_find_pick_rec(id);
     bloom_window *win = ctx->current_window;
     if (bloom_color_swatch_row(label, col, 0, 0, BLOOM_TRUE)) {
